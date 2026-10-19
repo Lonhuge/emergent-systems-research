@@ -76,3 +76,35 @@ Survival per condition; time course of harmonicity from 0.05 s to 4 s (speed
 of organisation); raw harmonicity, triad closure, number of partials, energy,
 spectral centroid and entropy. Listening examples: seeds 0–9 of every
 condition.
+
+---
+
+## Amendment B (2026-10-19): artefact check, exploratory
+
+Written after the main results were known: N-H1 not supported, N-H2
+supported, N-H3 REVERSED (no_migration much more harmonic: +0.30 versus
++0.09). Viable notes without coupling also show about +0.08 harmonicity
+excess, where no harmonic order is expected.
+
+**Suspected artefact:** splitting creates clusters of near-identical
+frequencies. A spectrum made of few clusters fits a harmonic series more
+easily than a null model with the same number of scattered partials, so the
+pre-registered metric may count clustering as harmonicity.
+
+**Checks, declared before running:**
+
+1. Cluster-robust harmonicity on the final spectrum (t = 4 s): partials within
+   30 cents are merged (energy-weighted log-frequency, summed energy); excess
+   is computed against a null with the same number of clusters. Needs at
+   least 3 clusters, otherwise the note counts as 0.
+2. New control condition `no_migration_no_coupling`, seeds 0–499.
+
+**Decision rule (exploratory, but fixed now):** paired Wilcoxon as in the main
+analysis, p < 0.001 and r > 0.3, on notes viable in both conditions.
+- C1: cluster-robust excess, no_migration > no_migration_no_coupling.
+  Supported means coupling creates harmonic order when partials stay put.
+- C2: cluster-robust excess, no_coupling viable notes compared with 0
+  (one-sample signed-rank). Supported (> 0) would mean the robust metric is
+  still biased.
+- If C1 is not supported, the reversed N-H3 is read as a clustering artefact
+  plus a survival effect, not as harmonic order.

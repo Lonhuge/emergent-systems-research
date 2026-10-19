@@ -27,6 +27,7 @@ CONDITIONS = {
     "no_coupling": {"coupling": False},
     "shuffle_phase": {"shuffle_phase": True},
     "no_migration": {"migrate": False},
+    "no_migration_no_coupling": {"migrate": False, "coupling": False},   # amendment B control
 }
 NOTE_S = 4.0
 LOG_EVERY_S = 0.05

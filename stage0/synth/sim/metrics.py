@@ -126,3 +126,31 @@ def spectrum(eco):
     """Compact list of (f_eff, amplitude) for the final state, sorted by frequency."""
     o = np.argsort(eco.f_eff)
     return [[round(float(eco.f_eff[i]), 3), round(float(eco.a[i]), 5)] for i in o]
+
+
+def cluster_spectrum(f, w, cents=30.0):
+    """Merge partials closer than `cents` into energy-weighted clusters (amendment B)."""
+    o = np.argsort(f)
+    f, w = f[o], w[o]
+    cf, cw = [], []
+    lf_acc, w_acc, last = 0.0, 0.0, None
+    for fi, wi in zip(f, w):
+        if last is not None and abs(1200.0 * np.log2(fi / last)) <= cents:
+            lf_acc += wi * np.log2(fi)
+            w_acc += wi
+            last = 2.0 ** (lf_acc / w_acc) if w_acc > 0 else fi
+        else:
+            if last is not None:
+                cf.append(last); cw.append(w_acc)
+            lf_acc, w_acc, last = wi * np.log2(fi), wi, fi
+    if last is not None:
+        cf.append(last); cw.append(w_acc)
+    return np.asarray(cf), np.asarray(cw)
+
+
+def cluster_harmonicity_excess(f, w, rng):
+    cf, cw = cluster_spectrum(np.asarray(f, float), np.asarray(w, float))
+    if cf.size < 3:
+        return 0.0, int(cf.size)
+    e, _ = _excess(harmonic_score, cf, cw, rng)
+    return (0.0 if not np.isfinite(e) else float(e)), int(cf.size)
