@@ -96,7 +96,23 @@ DEFAULTS = dict(
     migrate=True,
     evolve=True,
     shared_genome=False,   # True: all partials of a run share one controller (one rule set per note)
+    # --- v2 options for the breeding instrument (all off by default; v1 runs are unchanged)
+    pitch_hz=None,         # if set: the body gets a resonance at this pitch, partials start near it
+    pitch_mode="resonance",  # "resonance": broadband exciter, low-loss body resonance at the pitch
+                             # "exciter": narrow-band exciter at the pitch (first attempt, kept for record)
+    exciter_sigma=0.04,    # octaves, width of the narrow-band exciter or of the body resonance
+    resonance_depth=0.8,   # fraction of alpha_mean removed at the centre of the pitch resonance
+    init_spread=0.02,      # octaves, spread of the starting partials around the pitch
+    genome=None,           # explicit controller genome (shared by all partials)
+    body_genes=None,       # explicit body loss profile, 12 genes over x_min..x_max
+    births=False,          # quadratic nonlinearity creates partials at f_j + f_k and |f_j - f_k|
+    birth_every=5,         # steps between birth checks
+    birth_rate=400.0,      # per second per (a_j * a_k)
+    birth_top=8,           # only the strongest partials take part in birth checks
+    a_seed=0.03,           # amplitude of a newborn combination partial
+    pull_clip_hz=None,     # if set: cap the summed phase pull per partial at this many Hz
 )
+N_BODY = 12
 
 
 def _sigmoid(z):
@@ -122,13 +138,26 @@ class Ecology:
         self.rng = np.random.default_rng(seed)
         self.t = 0
         self.dt = float(p["dt"])
-        self.body_x, self.body_alpha = make_body(
-            self.rng, 1200, p["x_min"], p["x_max"], p["body_scale"], p["alpha_mean"], p["alpha_var"])
+        if p["body_genes"] is not None:
+            self.body_x = np.linspace(p["x_min"], p["x_max"], 1200)
+            gx = np.linspace(p["x_min"], p["x_max"], N_BODY)
+            self.body_alpha = np.clip(p["alpha_mean"] + p["alpha_var"] * np.tanh(
+                np.interp(self.body_x, gx, np.asarray(p["body_genes"], float))), 0.05 * p["alpha_mean"], None)
+        else:
+            self.body_x, self.body_alpha = make_body(
+                self.rng, 1200, p["x_min"], p["x_max"], p["body_scale"], p["alpha_mean"], p["alpha_var"])
         n = int(p["n_init"])
-        self.x = self.rng.uniform(1.0, 4.0, n)          # inharmonic random start, 110-880 Hz
+        if p["pitch_hz"] is not None:
+            self.x0 = float(np.log2(p["pitch_hz"] / p["f_ref"]))
+            self.x = np.clip(self.x0 + self.rng.standard_normal(n) * p["init_spread"], p["x_min"], p["x_max"])
+        else:
+            self.x0 = None
+            self.x = self.rng.uniform(1.0, 4.0, n)      # inharmonic random start, 110-880 Hz
         self.a = np.full(n, float(p["a_init"])) * self.rng.uniform(0.5, 1.5, n)
         self.Phi = self.rng.uniform(0, TWO_PI, n)
-        if p["shared_genome"]:
+        if p["genome"] is not None:
+            self.genome = np.repeat(np.asarray(p["genome"], float).reshape(1, GENOME_LEN), n, axis=0)
+        elif p["shared_genome"]:
             self.genome = np.repeat(self.rng.standard_normal((1, GENOME_LEN)) * 0.5, n, axis=0)
         else:
             self.genome = self.rng.standard_normal((n, GENOME_LEN)) * 0.5
@@ -157,10 +186,15 @@ class Ecology:
 
     def exciter(self, x):
         p = self.p
+        if self.x0 is not None and p["pitch_mode"] == "exciter":
+            return p["g"] * np.exp(-0.5 * ((x - self.x0) / p["exciter_sigma"]) ** 2)
         return p["g"] * np.exp(-p["exciter_tilt"] * x) * (1.0 - np.exp(-x / p["exciter_low"]))
 
     def body_net_gain(self, x, comp=1.0):
         alpha = np.interp(x, self.body_x, self.body_alpha)
+        if self.x0 is not None and self.p["pitch_mode"] == "resonance":
+            alpha = alpha - self.p["resonance_depth"] * self.p["alpha_mean"] * np.exp(
+                -0.5 * ((x - self.x0) / self.p["exciter_sigma"]) ** 2)
         return comp * self.exciter(x) - alpha
 
     def _unpack(self):
@@ -298,6 +332,9 @@ class Ecology:
 
         # --- phase dynamics
         theta_rate = c * dth
+        if p["pull_clip_hz"] is not None:
+            lim = TWO_PI * p["pull_clip_hz"]
+            theta_rate = np.clip(theta_rate, -lim, lim)
         f = self.freq()
         f_eff = f + theta_rate / TWO_PI
         if render:
@@ -331,8 +368,54 @@ class Ecology:
                 idx = self.rng.choice(idx, size=max(room, 0), replace=False)
             if idx.size:
                 self._split(idx)
+        if p["births"] and self.n >= 1 and self.t % int(p["birth_every"]) == 0:
+            self._births()
         self.t += 1
         return out_audio
+
+    def _births(self):
+        """Quadratic nonlinearity radiates at sum and difference frequencies."""
+        p = self.p
+        k = min(self.n, int(p["birth_top"]))
+        top = np.argsort(-self.a)[:k]
+        f = self.freq()
+        f_lo, f_hi = p["f_ref"] * 2 ** p["x_min"], p["f_ref"] * 2 ** p["x_max"]
+        dtb = self.dt * p["birth_every"]
+        new = []
+        for ii in range(k):
+            for jj in range(ii, k):
+                j, m = top[ii], top[jj]
+                prob = 1.0 - np.exp(-p["birth_rate"] * self.a[j] * self.a[m] * dtb)
+                cands = [(f[j] + f[m], self.Phi[j] + self.Phi[m])]
+                if j != m:
+                    hi, lo = (j, m) if f[j] >= f[m] else (m, j)
+                    cands.append((f[hi] - f[lo], self.Phi[hi] - self.Phi[lo]))
+                for F, ph in cands:
+                    if not (f_lo <= F <= f_hi):
+                        continue
+                    xF = np.log2(F / p["f_ref"])
+                    if np.min(np.abs(self.x - xF)) < p["near_width"] or any(abs(xF - q[0]) < p["near_width"] for q in new):
+                        continue
+                    if self.rng.random() < prob:
+                        new.append((xF, ph % TWO_PI, j))
+        room = int(p["n_max"]) - self.n
+        new = new[:max(0, min(room, 4))]
+        if not new:
+            return
+        xs = np.array([q[0] for q in new]); ph = np.array([q[1] for q in new]); par = np.array([q[2] for q in new])
+        kk = xs.size
+        self.x = np.concatenate([self.x, xs])
+        self.a = np.concatenate([self.a, np.full(kk, p["a_seed"])])
+        self.Phi = np.concatenate([self.Phi, ph])
+        self.genome = np.concatenate([self.genome, self.genome[par]])
+        self.lineage = np.concatenate([self.lineage, self.lineage[par]])
+        self.gen = np.concatenate([self.gen, np.zeros(kk, dtype=np.int64)])
+        self.growth = np.concatenate([self.growth, np.zeros(kk)])
+        self.f_eff = np.concatenate([self.f_eff, self.freq(xs)])
+        self.c = np.concatenate([self.c, self.c[par]])
+        self.v = np.concatenate([self.v, np.zeros(kk)])
+        self.births += kk
+        self._triads_dirty = True
 
     def _keep(self, m):
         self.x, self.a, self.Phi = self.x[m], self.a[m], self.Phi[m]

@@ -1,0 +1,776 @@
+<title>Teiltongarten</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a working bench. Controls rail on top, a grid of tone cards, archive below. */
+:root {
+  --bg: #e9edf0; --surface: #f8fafb; --surface-2: #ffffff; --ink: #18202b; --muted: #5a6575;
+  --line: #ccd4dc; --accent: #b6502a; --accent-ink: #ffffff; --accent-soft: #f2ddd3;
+  --partial: #b6502a; --guide: rgba(24,32,43,0.08); --ok: #2f7d5b; --warn: #a66a00;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151b; --surface: #181e26; --surface-2: #1e2530; --ink: #e5e9ee; --muted: #98a3b3;
+  --line: #2c3542; --accent: #e7804f; --accent-ink: #1a0e08; --accent-soft: #3a2419;
+  --partial: #f0905f; --guide: rgba(229,233,238,0.08); --ok: #5fbf91; --warn: #e0a640; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181e26; --surface-2: #1e2530; --ink: #e5e9ee; --muted: #98a3b3;
+  --line: #2c3542; --accent: #e7804f; --accent-ink: #1a0e08; --accent-soft: #3a2419;
+  --partial: #f0905f; --guide: rgba(229,233,238,0.08); --ok: #5fbf91; --warn: #e0a640; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.02em; margin: 0; line-height: 1; }
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.pill { font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.ok { color: var(--ok); border-color: currentColor; }
+.rail { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 14px; }
+.rail-row { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: flex-end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+select, input[type="text"] { font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+input[type="range"] { accent-color: var(--accent); width: 150px; max-width: 100%; }
+.val { font-family: var(--font-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); padding: 7px 12px; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button[disabled] { opacity: 0.5; cursor: default; }
+.gen-info { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-left: auto; }
+.vocab { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vocab .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; }
+.hint { font-size: 13px; color: var(--warn); min-height: 1em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.card.tagged { border-color: var(--accent); }
+.card-head { display: flex; align-items: center; gap: 8px; }
+.card-id { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.card-head .spacer { flex: 1; }
+.play { width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.play svg { width: 14px; height: 14px; fill: currentColor; }
+.small { font-size: 12px; padding: 5px 8px; }
+canvas.map { width: 100%; height: 120px; display: block; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.meter { display: grid; gap: 2px; min-width: 0; }
+.meter b { font-weight: 500; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 4px; }
+.meter b i { font-style: normal; font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); line-height: 1.5; }
+.card .chips { gap: 4px; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); border-color: var(--accent); }
+.status { font-family: var(--font-mono); font-size: 11px; color: var(--muted); min-height: 1em; }
+.loading canvas.map { opacity: 0.35; }
+section.archive { display: grid; gap: 10px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.arch-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.arch-item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; display: grid; gap: 6px; min-width: 0; }
+.arch-item .row { display: flex; align-items: center; gap: 8px; }
+.arch-item .tags { font-size: 12px; color: var(--muted); }
+.empty { color: var(--muted); padding: 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
+details.about { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+details.about summary { cursor: pointer; font-weight: 600; }
+details.about p, details.about li { max-width: 72ch; color: var(--muted); }
+details.about strong { color: var(--ink); font-weight: 600; }
+@media (max-width: 520px) { input[type="range"] { width: 120px; } .gen-info { margin-left: 0; } }
+.card-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.card-foot .status { flex-basis: 100%; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Teiltongarten</h1>
+      <p class="lede">Jeder Ton ist eine kleine Population von Teiltönen, die wandern, sich teilen, sterben und über Dreiklänge koppeln. Du hörst, markierst Eigenschaften und züchtest die Regeln weiter.</p>
+    </div>
+    <span id="store" class="pill">Speicher: wird verbunden</span>
+  </header>
+
+  <section class="rail" aria-label="Steuerung">
+    <div class="rail-row">
+      <label class="field"><span>Tonhöhe</span><select id="pitch"></select></label>
+      <label class="field"><span>Wandern <i class="val" id="wanderVal">aus</i></span><input id="wander" type="range" min="0" max="2" step="0.1" value="0"></label>
+      <label class="field"><span>Mutation <i class="val" id="mutVal">0.20</i></span><input id="mut" type="range" min="0.05" max="0.6" step="0.01" value="0.2"></label>
+      <label class="field"><span>Züchten aus</span><select id="srcA"></select></label>
+      <label class="field"><span>Kreuzen mit</span><select id="srcB"></select></label>
+      <button id="breed" class="primary">Nächste Generation züchten</button>
+      <button id="random">Zufällige Generation</button>
+      <span class="gen-info" id="genInfo">Generation 1</span>
+    </div>
+    <div class="vocab" id="vocab"><span class="lbl">Eigenschaften</span></div>
+    <div class="hint" id="hint" role="status"></div>
+  </section>
+
+  <main class="grid" id="grid" aria-label="Töne der aktuellen Generation"></main>
+
+  <section class="archive" aria-label="Archiv">
+    <div class="rail-row"><h2>Archiv</h2><div class="chips" id="archFilter"></div><span class="spacer" style="flex:1"></span><button id="export" class="small">Archiv als JSON sichern</button></div>
+    <div class="arch-list" id="archList"></div>
+  </section>
+
+  <details class="about">
+    <summary>Was hier emergent ist und was nicht</summary>
+    <ul>
+      <li><strong>Kein Ton enthält eine Obertonreihe.</strong> Der Klangkörper hat nur eine Resonanz bei der gewählten Tonhöhe. Obertöne entstehen, weil eine quadratische Nichtlinearität Kombinationstöne bei f₁ + f₂ und |f₁ − f₂| erzeugt und Dreiklänge in der Phase einrasten. Das ist bekannte Physik.</li>
+      <li><strong>Die Klangfarbe kommt aus den Regeln.</strong> Alle Teiltöne eines Tons teilen sich einen kleinen Controller (8 Sinne, 6 Neuronen, 3 Handlungen: wandern, sich öffnen, teilen) und ein Korpusprofil aus 12 Werten. Diese 87 Zahlen sind das Genom, das du züchtest. Niemand legt fest, wie es klingen soll.</li>
+      <li><strong>Die Karte zeigt die Agenten.</strong> Jeder Punkt ist ein Teilton zu einem Zeitpunkt, die Helligkeit ist seine Lautstärke. Die feinen Linien markieren Vielfache der Tonhöhe als Orientierung, die Teiltöne kennen sie nicht.</li>
+      <li><strong>Ohne Wechselwirkung</strong> spielt denselben Regelsatz mit abgeschalteter Kopplung und ohne Kombinationstöne. Was dann fehlt, ist durch die Wechselwirkung entstanden.</li>
+      <li><strong>Der Tonhöhen-Test</strong> spielt denselben Regelsatz auf fünf Tonhöhen, die beim Züchten nie vorkamen. Bleibt der Charakter erhalten, ist er eine Eigenschaft der Regeln.</li>
+      <li><strong>Wandern</strong> erlaubt den Teiltönen, sich im Frequenzraum zu bewegen. In den Experimenten hat das die Ordnung meist zerstört und die Tonhöhe verschoben. Es ist hier zum Erkunden da.</li>
+      <li>Die Klänge werden vollständig in deinem Browser berechnet. Markierte Töne werden mit ihren Eigenschaften gespeichert, damit sie später ausgewertet werden können.</li>
+    </ul>
+  </details>
+</div>
+
+<script type="text/plain" id="engine-src">/* Partial-ecology instrument engine (browser + node).
+ * Port of sim/ecology.py with the v2 instrument options of sim/instrument.py:
+ * fast notes, body resonance at the pitch, combination-tone births, capped
+ * phase pull, one shared controller per note. Pure computation: no network,
+ * no storage, no code generation. */
+(function (root) {
+  "use strict";
+  var N_IN = 8, N_HID = 6, N_OUT = 3;
+  var GLEN = N_IN * N_HID + N_HID + N_HID * N_OUT + N_OUT; // 75
+  var N_BODY = 12, FULL_LEN = GLEN + N_BODY;               // 87
+  var TWO_PI = Math.PI * 2, K = 50;
+  var P = {
+    dt: 0.001, sr: 32000, f_ref: 55, x_min: 0, x_max: 6, n_init: 6, n_max: 160,
+    g: 1.8 * K, exciter_tilt: 0.35, exciter_low: 0.4, P_max: 1.0 * K,
+    alpha_mean: 0.8 * K, alpha_var: 0.5 * K, h: 1.0 * K, beta: 0.15, beta_near: 2.0,
+    near_width: 0.03, q: 2.0 * K, kappa: 30, w_hz: 4, cost_move: 0.3 * K, cost_open: 0.05 * K,
+    noise: 0.3 * Math.sqrt(K), a_init: 0.04, a_min: 0.02, a_floor: 0.02, a_split: 0.35,
+    split_detune: 0.012, triad_refresh: 2, exciter_sigma: 0.04, resonance_depth: 0.8,
+    init_spread: 0.02, birth_every: 5, birth_rate: 400, birth_top: 8, a_seed: 0.03,
+    pull_clip_hz: 4, note_s: 4
+  };
+
+  function makeRng(seed) {
+    var s = seed >>> 0, spare = null;
+    function u() { s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+    function n() { if (spare !== null) { var r = spare; spare = null; return r; }
+      var a = u() || 1e-12, b = u(); var m = Math.sqrt(-2 * Math.log(a));
+      spare = m * Math.sin(TWO_PI * b); return m * Math.cos(TWO_PI * b); }
+    return { u: u, n: n };
+  }
+
+  function randomGenome(rng) {
+    var g = new Array(FULL_LEN);
+    for (var i = 0; i < GLEN; i++) g[i] = rng.n() * 0.5;
+    for (var j = GLEN; j < FULL_LEN; j++) g[j] = rng.n();
+    return g;
+  }
+
+  function play(opts) {
+    var genome = opts.genome, pitch = opts.pitch, seed = opts.seed >>> 0;
+    var interaction = opts.interaction !== false, wander = +opts.wander || 0;
+    var render = opts.render !== false;
+    var rng = makeRng(seed);
+    var dt = P.dt, migrate = wander > 0, vmax = migrate ? wander : 1e-9;
+    var q = interaction ? P.q : 0, kap = interaction ? P.kappa : 0, births = interaction;
+    var x0 = Math.log2(pitch / P.f_ref);
+    var cap = P.n_max + 16;
+    var x = new Float64Array(cap), a = new Float64Array(cap), Phi = new Float64Array(cap);
+    var growth = new Float64Array(cap), feff = new Float64Array(cap), c = new Float64Array(cap), v = new Float64Array(cap);
+    var n = P.n_init;
+    for (var i = 0; i < n; i++) {
+      x[i] = Math.min(P.x_max, Math.max(P.x_min, x0 + rng.n() * P.init_spread));
+      a[i] = P.a_init * (0.5 + rng.u());
+      Phi[i] = rng.u() * TWO_PI; c[i] = 0.5;
+      feff[i] = P.f_ref * Math.pow(2, x[i]);
+    }
+    // controller (shared) and body
+    var W1 = genome.slice(0, 48), b1 = genome.slice(48, 54), W2 = genome.slice(54, 72), b2 = genome.slice(72, 75);
+    var body = genome.slice(GLEN, FULL_LEN), gstep = (P.x_max - P.x_min) / (N_BODY - 1);
+    function alphaAt(xx) {
+      var t = (xx - P.x_min) / gstep, i0 = Math.max(0, Math.min(N_BODY - 2, Math.floor(t))), fr = Math.min(1, Math.max(0, t - i0));
+      var gv = body[i0] * (1 - fr) + body[i0 + 1] * fr;
+      var al = Math.max(P.alpha_mean + P.alpha_var * Math.tanh(gv), 0.05 * P.alpha_mean);
+      var d = (xx - x0) / P.exciter_sigma;
+      return al - P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * d * d);
+    }
+    function exciter(xx) { return P.g * Math.exp(-P.exciter_tilt * xx) * (1 - Math.exp(-xx / P.exciter_low)); }
+    function netGain(xx, comp) { return comp * exciter(xx) - alphaAt(xx); }
+    function freq(xx) { return P.f_ref * Math.pow(2, xx); }
+
+    var steps = Math.round(P.note_s / dt), ns = Math.round(dt * P.sr);
+    var audio = render ? new Float32Array(steps * ns) : null;
+    var trace = [], energy = [];
+    var TJ = [], TK = [], TM = [], TW = [], dirty = true;
+    var dA = new Float64Array(cap), dth = new Float64Array(cap), zr = new Float64Array(cap), zi = new Float64Array(cap);
+    var aNew = new Float64Array(cap), inp = new Float64Array(N_IN), hdn = new Float64Array(N_HID), smod = new Float64Array(cap);
+    var nearA2 = new Float64Array(cap), crowd = new Float64Array(cap), fb = new Float64Array(cap);
+    var lockNum = 0, lockDen = 0;
+
+    function findTriads() {
+      TJ.length = TK.length = TM.length = TW.length = 0;
+      if (n < 2) return;
+      for (var i2 = 0; i2 < n; i2++) fb[i2] = freq(x[i2]);
+      var w = P.w_hz, lim = 3 * w;
+      for (var j = 0; j < n; j++) for (var k = j; k < n; k++) {
+        var s = fb[j] + fb[k];
+        for (var m = 0; m < n; m++) {
+          if (m === j || m === k) continue;
+          var d = s - fb[m];
+          if (d > -lim && d < lim) { var wt = Math.exp(-(d / w) * (d / w)); if (j === k) wt *= 0.5;
+            TJ.push(j); TK.push(k); TM.push(m); TW.push(wt); }
+        }
+      }
+    }
+    function keep(mask) {
+      var w = 0;
+      for (var i3 = 0; i3 < n; i3++) if (mask[i3]) {
+        x[w] = x[i3]; a[w] = a[i3]; Phi[w] = Phi[i3]; growth[w] = growth[i3]; feff[w] = feff[i3]; c[w] = c[i3]; v[w] = v[i3]; smod[w] = smod[i3]; w++;
+      }
+      n = w; dirty = true;
+    }
+    function addPartial(xx, aa, ph, cc) {
+      x[n] = xx; a[n] = aa; Phi[n] = ph; growth[n] = 0; feff[n] = freq(xx); c[n] = cc; v[n] = 0; smod[n] = 0; n++; dirty = true;
+    }
+
+    for (var st = 0; st < steps; st++) {
+      if (n === 0) { if (render) { /* silence */ } if (st % 10 === 0) { trace.push(st * dt, 0); energy.push(0); } continue; }
+      if (dirty || st % P.triad_refresh === 0) { findTriads(); dirty = false; }
+      // coupling
+      for (var i4 = 0; i4 < n; i4++) { dA[i4] = 0; dth[i4] = 0; zr[i4] = 0; zi[i4] = 0; }
+      lockNum = 0; lockDen = 0;
+      for (var t = 0; t < TJ.length; t++) {
+        var J = TJ[t], Kk = TK[t], M = TM[t], W = TW[t];
+        var psi = Phi[J] + Phi[Kk] - Phi[M], cp = Math.cos(psi), sp = Math.sin(psi);
+        var aj = a[J], ak = a[Kk], am = a[M];
+        var afJ = Math.max(aj, P.a_floor), afK = Math.max(ak, P.a_floor), afM = Math.max(am, P.a_floor);
+        if (q) {
+          dA[M] += q * W * aj * ak * cp; dA[J] += q * W * ak * am * cp; dA[Kk] += q * W * aj * am * cp;
+          dth[M] += kap * W * Math.min(aj * ak / afM, 3) * sp;
+          dth[J] -= kap * W * Math.min(ak * am / afJ, 3) * sp;
+          dth[Kk] -= kap * W * Math.min(aj * am / afK, 3) * sp;
+        }
+        zr[M] += W * aj * ak * cp; zi[M] += W * aj * ak * sp;
+        zr[J] += W * ak * am * cp; zi[J] += W * ak * am * sp;
+        zr[Kk] += W * aj * am * cp; zi[Kk] += W * aj * am * sp;
+        var ww = W * aj * ak * am; lockNum += ww * cp; lockDen += ww;
+      }
+      // power budget
+      var a2sum = 0, power = 0;
+      for (var i5 = 0; i5 < n; i5++) { var a2 = a[i5] * a[i5]; a2sum += a2; power += exciter(x[i5]) * a2 + a[i5] * c[i5] * Math.max(dA[i5], 0); }
+      var comp = power > 0 ? Math.min(1, P.P_max / power) : 1;
+      // neighbourhood
+      for (var i6 = 0; i6 < n; i6++) {
+        var cr = 0, na = 0;
+        for (var j6 = 0; j6 < n; j6++) { if (j6 === i6) continue; var ddx = Math.abs(x[i6] - x[j6]);
+          if (ddx < 0.05) cr++; var e6 = ddx / P.near_width; na += Math.exp(-e6 * e6) * a[j6] * a[j6]; }
+        crowd[i6] = cr; nearA2[i6] = na;
+      }
+      // controller + amplitude
+      for (var i7 = 0; i7 < n; i7++) {
+        var ai = a[i7], af = Math.max(ai, P.a_floor), xi = x[i7];
+        var net = netGain(xi, comp);
+        var gp = netGain(Math.min(P.x_max, xi + 0.02), comp), gm = netGain(Math.max(P.x_min, xi - 0.02), comp);
+        var grad = (gp - gm) / 0.04, za = Math.sqrt(zr[i7] * zr[i7] + zi[i7] * zi[i7]);
+        inp[0] = Math.max(-3, Math.min(3, (Math.log(af) - Math.log(P.a_split)) / 2));
+        inp[1] = Math.tanh(growth[i7]); inp[2] = Math.tanh(net); inp[3] = Math.tanh(0.5 * grad);
+        inp[4] = Math.tanh(crowd[i7] / 2); inp[5] = Math.tanh(za / af); inp[6] = za > 1e-12 ? zr[i7] / za : 0; inp[7] = 1;
+        for (var h = 0; h < N_HID; h++) { var sum = b1[h]; for (var ii = 0; ii < N_IN; ii++) sum += W1[h * N_IN + ii] * inp[ii]; hdn[h] = Math.tanh(sum); }
+        var o0 = b2[0], o1 = b2[1], o2 = b2[2];
+        for (var h2 = 0; h2 < N_HID; h2++) { o0 += W2[h2] * hdn[h2]; o1 += W2[N_HID + h2] * hdn[h2]; o2 += W2[2 * N_HID + h2] * hdn[h2]; }
+        v[i7] = migrate ? vmax * Math.tanh(o0) : 0;
+        c[i7] = 1 / (1 + Math.exp(-o1));
+        smod[i7] = Math.tanh(o2);
+        var sat = P.h * (ai * ai + P.beta * (a2sum - ai * ai) + P.beta_near * nearA2[i7]);
+        var rate = net - sat - P.cost_move * (v[i7] / vmax) * (v[i7] / vmax) - P.cost_open * c[i7];
+        var nz = P.noise * Math.sqrt(dt) * rng.n();
+        var an = ai + dt * (ai * rate + comp * c[i7] * dA[i7]) + ai * nz;
+        aNew[i7] = Math.min(4, Math.max(0, an));
+      }
+      // phase + audio
+      var lim2 = TWO_PI * P.pull_clip_hz;
+      for (var i8 = 0; i8 < n; i8++) {
+        var tr = c[i8] * dth[i8]; tr = Math.max(-lim2, Math.min(lim2, tr));
+        feff[i8] = freq(x[i8]) + tr / TWO_PI;
+      }
+      if (render) {
+        var base = st * ns;
+        for (var i9 = 0; i9 < n; i9++) {
+          var w0 = TWO_PI * feff[i9] / P.sr, a0 = a[i9], a1 = aNew[i9], ph0 = Phi[i9];
+          for (var sIdx = 0; sIdx < ns; sIdx++) { var fr = sIdx / ns; audio[base + sIdx] += (a0 * (1 - fr) + a1 * fr) * Math.cos(ph0 + w0 * sIdx); }
+        }
+      }
+      for (var i10 = 0; i10 < n; i10++) {
+        Phi[i10] = (Phi[i10] + TWO_PI * feff[i10] * dt) % TWO_PI;
+        growth[i10] = (aNew[i10] - a[i10]) / (Math.max(a[i10], P.a_floor) * dt);
+        a[i10] = aNew[i10];
+        if (migrate) x[i10] = Math.min(P.x_max, Math.max(P.x_min, x[i10] + v[i10] * dt));
+      }
+      // death
+      var anyDead = false, mask = new Uint8Array(n);
+      for (var i11 = 0; i11 < n; i11++) { mask[i11] = a[i11] >= P.a_min ? 1 : 0; if (!mask[i11]) anyDead = true; }
+      if (anyDead) keep(mask);
+      // split
+      if (n) {
+        var idx = [];
+        for (var i12 = 0; i12 < n; i12++) if (a[i12] > P.a_split * Math.exp(0.5 * smod[i12])) idx.push(i12);
+        var room = P.n_max - n;
+        while (idx.length > Math.max(room, 0)) idx.splice(Math.floor(rng.u() * idx.length), 1);
+        for (var s2 = 0; s2 < idx.length; s2++) {
+          var pI = idx[s2]; a[pI] = a[pI] / Math.SQRT2;
+          var cx = Math.min(P.x_max, Math.max(P.x_min, x[pI] + rng.n() * P.split_detune));
+          addPartial(cx, a[pI], Phi[pI], c[pI]);
+        }
+      }
+      // combination-tone births
+      if (births && n >= 1 && st % P.birth_every === 0) {
+        var order = []; for (var i13 = 0; i13 < n; i13++) order.push(i13);
+        order.sort(function (p1, p2) { return a[p2] - a[p1]; });
+        var kTop = Math.min(n, P.birth_top), dtb = dt * P.birth_every, fLo = freq(P.x_min), fHi = freq(P.x_max), nw = [];
+        for (var u1 = 0; u1 < kTop; u1++) for (var u2 = u1; u2 < kTop; u2++) {
+          var jb = order[u1], mb = order[u2], fj = freq(x[jb]), fm = freq(x[mb]);
+          var prob = 1 - Math.exp(-P.birth_rate * a[jb] * a[mb] * dtb);
+          var cands = [[fj + fm, Phi[jb] + Phi[mb]]];
+          if (jb !== mb) { if (fj >= fm) cands.push([fj - fm, Phi[jb] - Phi[mb]]); else cands.push([fm - fj, Phi[mb] - Phi[jb]]); }
+          for (var cI = 0; cI < cands.length; cI++) {
+            var F = cands[cI][0]; if (!(F >= fLo && F <= fHi)) continue;
+            var xF = Math.log2(F / P.f_ref), clash = false;
+            for (var e1 = 0; e1 < n; e1++) if (Math.abs(x[e1] - xF) < P.near_width) { clash = true; break; }
+            for (var e2 = 0; e2 < nw.length && !clash; e2++) if (Math.abs(nw[e2][0] - xF) < P.near_width) clash = true;
+            if (clash) continue;
+            if (rng.u() < prob) nw.push([xF, ((cands[cI][1] % TWO_PI) + TWO_PI) % TWO_PI, jb]);
+          }
+        }
+        var lim3 = Math.max(0, Math.min(P.n_max - n, 4));
+        for (var b5 = 0; b5 < Math.min(nw.length, lim3); b5++) addPartial(nw[b5][0], P.a_seed, nw[b5][1], c[nw[b5][2]]);
+      }
+      if (st % 10 === 0) {
+        trace.push(st * dt, n);
+        var en = 0;
+        for (var i14 = 0; i14 < n; i14++) { trace.push(feff[i14], a[i14]); en += a[i14] * a[i14]; }
+        energy.push(en);
+      }
+    }
+    // normalise audio
+    if (render) {
+      var peak = 0; for (var s3 = 0; s3 < audio.length; s3++) { var av = Math.abs(audio[s3]); if (av > peak) peak = av; }
+      if (peak > 0) for (var s4 = 0; s4 < audio.length; s4++) audio[s4] *= 0.9 / peak;
+      var fade = Math.floor(0.02 * P.sr);
+      for (var s5 = 0; s5 < fade; s5++) { var r = s5 / fade; audio[s5] *= r; audio[audio.length - 1 - s5] *= r; }
+    }
+    var spec = [];
+    for (var i15 = 0; i15 < n; i15++) spec.push([feff[i15], a[i15]]);
+    spec.sort(function (p1, p2) { return p1[0] - p2[0]; });
+    return { audio: audio, sr: P.sr, trace: trace, energy: energy, spectrum: spec, n: n,
+             lock: lockDen > 0 ? lockNum / lockDen : 0, metrics: describe(spec, energy, pitch, seed) };
+  }
+
+  // ---------------- descriptors (read-only) ----------------
+  function harmonicScore(f, w) {
+    if (f.length < 3) return NaN;
+    var wmax = 0, wsum = 0; for (var i = 0; i < w.length; i++) { if (w[i] > wmax) wmax = w[i]; wsum += w[i]; }
+    if (wsum <= 0) return NaN;
+    var flow = Infinity; for (var j = 0; j < f.length; j++) if (w[j] >= 0.05 * wmax && f[j] < flow) flow = f[j];
+    var best = 0;
+    for (var div = 1; div <= 4; div++) for (var g = 0; g < 17; g++) {
+      var f0 = flow / div * Math.pow(2, (-40 + 5 * g) / 1200), sc = 0;
+      for (var k = 0; k < f.length; k++) {
+        var hk = Math.max(1, Math.round(f[k] / f0)); if (hk > 32) continue;
+        var dev = 1200 * Math.log2(f[k] / (hk * f0)); sc += Math.exp(-(dev / 15) * (dev / 15)) * w[k];
+      }
+      sc /= wsum; if (sc > best) best = sc;
+    }
+    return best;
+  }
+  function clusterSpectrum(spec) {
+    var cl = [], last = null, lw = 0, lf = 0, sf = 0, sf2 = 0;
+    for (var i = 0; i < spec.length; i++) {
+      var fi = Math.max(spec[i][0], 1), wi = spec[i][1] * spec[i][1];
+      if (last !== null && Math.abs(1200 * Math.log2(fi / last)) <= 30) {
+        lf += wi * Math.log2(fi); lw += wi; sf += wi * fi; sf2 += wi * fi * fi; last = lw > 0 ? Math.pow(2, lf / lw) : fi;
+      } else {
+        if (last !== null) cl.push({ f: last, w: lw, spread: Math.sqrt(Math.max(0, sf2 / lw - (sf / lw) * (sf / lw))) });
+        lf = wi * Math.log2(fi); lw = wi; sf = wi * fi; sf2 = wi * fi * fi; last = fi;
+      }
+    }
+    if (last !== null) cl.push({ f: last, w: lw, spread: Math.sqrt(Math.max(0, sf2 / lw - (sf / lw) * (sf / lw))) });
+    return cl;
+  }
+  function describe(spec, energy, pitch, seed) {
+    var m = { partials: spec.length, clusters: 0, harmony: 0, brightness: 0, inharmonicity: 0, beating: 0, attack: null, unrest: 0 };
+    if (!spec.length) return m;
+    var cl = clusterSpectrum(spec); m.clusters = cl.length;
+    var cf = cl.map(function (o) { return o.f; }), cw = cl.map(function (o) { return o.w; });
+    if (cl.length >= 3) {
+      var rng = makeRng((seed ^ 0x9e3779b9) >>> 0), obs = harmonicScore(cf, cw);
+      var lo = Math.log2(Math.min.apply(null, cf)), hi = Math.log2(Math.max.apply(null, cf)), nulls = 0, cnt = 0;
+      for (var r = 0; r < 24; r++) { var fr = cf.map(function () { return Math.pow(2, lo + (hi - lo) * rng.u()); });
+        var vv = harmonicScore(fr, cw); if (!isNaN(vv)) { nulls += vv; cnt++; } }
+      m.harmony = cnt ? obs - nulls / cnt : 0;
+    }
+    var ws = 0, fs = 0; for (var i = 0; i < spec.length; i++) { var w = spec[i][1] * spec[i][1]; ws += w; fs += w * spec[i][0]; }
+    m.brightness = ws > 0 ? fs / ws / pitch : 0;
+    var wmax = Math.max.apply(null, cw), fund = null, fw = -1;
+    for (var j = 0; j < cl.length; j++) if (Math.abs(1200 * Math.log2(cf[j] / pitch)) < 100 && cw[j] > fw) { fw = cw[j]; fund = cf[j]; }
+    if (fund === null) fund = cf[cw.indexOf(wmax)];
+    var dsum = 0, dw = 0, bsum = 0;
+    for (var k = 0; k < cl.length; k++) { if (cw[k] < 0.01 * wmax) continue;
+      var hk = Math.max(1, Math.round(cf[k] / fund)); dsum += cw[k] * Math.abs(1200 * Math.log2(cf[k] / (hk * fund))); dw += cw[k];
+      bsum += cw[k] * cl[k].spread; }
+    m.inharmonicity = dw > 0 ? dsum / dw : 0; m.beating = dw > 0 ? bsum / dw : 0;
+    // energy trace is sampled every 10 ms
+    var tail = energy.slice(Math.floor(energy.length / 2)), mean = 0;
+    for (var t = 0; t < tail.length; t++) mean += tail[t]; mean /= Math.max(1, tail.length);
+    if (mean > 0) {
+      for (var u = 0; u < energy.length; u++) if (energy[u] >= 0.5 * mean) { m.attack = u * 0.01; break; }
+      var vs = 0; for (var t2 = 0; t2 < tail.length; t2++) vs += (tail[t2] - mean) * (tail[t2] - mean);
+      m.unrest = Math.sqrt(vs / Math.max(1, tail.length)) / mean;
+    }
+    return m;
+  }
+
+  var api = { play: play, randomGenome: randomGenome, makeRng: makeRng, P: P, GLEN: GLEN, N_BODY: N_BODY, FULL_LEN: FULL_LEN,
+              clusterSpectrum: clusterSpectrum, harmonicScore: harmonicScore };
+  if (typeof module !== "undefined" && module.exports) module.exports = api; else root.PartialEngine = api;
+})(typeof self !== "undefined" ? self : this);
+</script>
+<script>
+(function () {
+  "use strict";
+  var NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","H"];
+  var DEFAULT_TAGS = ["glockig","warm","hell","hohl","rau","schwebend","ruhig","lebendig","perkussiv","stimmhaft","fremd","instrumentnah"];
+  var GEN_SIZE = 12, GLEN = 75, FULL = 87;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- state ----------
+  var S = { gen: 1, notes: [], archive: new Map(), vocab: DEFAULT_TAGS.slice(), filter: null, db: null, downloads: null, ctx: null, src: null, playing: null };
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  // ---------- pitch select ----------
+  (function () {
+    var sel = $("pitch");
+    for (var midi = 45; midi <= 81; midi++) { // A2 .. A5
+      var f = 440 * Math.pow(2, (midi - 69) / 12), name = NOTES[midi % 12] + (Math.floor(midi / 12) - 1);
+      var o = document.createElement("option"); o.value = f.toFixed(3); o.textContent = name + "  ·  " + f.toFixed(1) + " Hz";
+      if (midi === 57) o.selected = true; sel.appendChild(o);
+    }
+  })();
+  function pitch() { return parseFloat($("pitch").value); }
+  function wander() { return parseFloat($("wander").value); }
+  function mut() { return parseFloat($("mut").value); }
+  $("wander").addEventListener("input", function () { $("wanderVal").textContent = wander() > 0 ? wander().toFixed(1) + " Okt/s" : "aus"; });
+  $("mut").addEventListener("input", function () { $("mutVal").textContent = mut().toFixed(2); });
+
+  // ---------- worker pool ----------
+  var workerSrc = $("engine-src").textContent + "\n" +
+    "self.onmessage=function(e){var j=e.data;var r=PartialEngine.play(j);var msg={id:j.id,metrics:r.metrics,n:r.n,lock:r.lock,trace:new Float32Array(r.trace),audio:r.audio,sr:r.sr};" +
+    "self.postMessage(msg,[msg.trace.buffer,msg.audio.buffer]);};";
+  var workerUrl = URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" }));
+  var POOL = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+  var workers = [], queue = [], pending = new Map(), jobSeq = 0;
+  for (var w = 0; w < POOL; w++) {
+    var wk = new Worker(workerUrl); wk.busy = false;
+    wk.onmessage = (function (wkr) { return function (e) { wkr.busy = false; var cb = pending.get(e.data.id); pending.delete(e.data.id); if (cb) cb(e.data); pump(); }; })(wk);
+    wk.onerror = (function (wkr) { return function (ev) { wkr.busy = false; console.error(ev.message); pump(); }; })(wk);
+    workers.push(wk);
+  }
+  function pump() {
+    for (var i = 0; i < workers.length && queue.length; i++) if (!workers[i].busy) {
+      var job = queue.shift(); workers[i].busy = true; pending.set(job.msg.id, job.cb); workers[i].postMessage(job.msg);
+    }
+  }
+  function compute(opts, front) {
+    return new Promise(function (resolve) {
+      var msg = { id: ++jobSeq, genome: opts.genome, pitch: opts.pitch, seed: opts.seed, wander: opts.wander, interaction: opts.interaction !== false };
+      var job = { msg: msg, cb: resolve };
+      if (front) queue.unshift(job); else queue.push(job);
+      pump();
+    });
+  }
+
+  // ---------- genomes ----------
+  var rng = Math.random;
+  function gauss() { var u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function randomGenome() { var g = []; for (var i = 0; i < FULL; i++) g.push(i < GLEN ? gauss() * 0.5 : gauss()); return g; }
+  function child(pa, pb, sigma) {
+    var g = [];
+    for (var i = 0; i < FULL; i++) { var base = pb && rng() < 0.5 ? pb[i] : pa[i]; g.push(+(base + gauss() * sigma).toFixed(4)); }
+    return g;
+  }
+  function newSeed() { return Math.floor(rng() * 4294967295); }
+  function mkId(gen, i) { return "g" + gen + "-" + String(i + 1).padStart(2, "0") + "-" + Math.floor(rng() * 1e6).toString(36); }
+
+  // ---------- audio ----------
+  function ctx() { if (!S.ctx) { var AC = window.AudioContext || window.webkitAudioContext; S.ctx = new AC(); } if (S.ctx.state === "suspended") S.ctx.resume(); return S.ctx; }
+  function stop() { if (S.src) { try { S.src.stop(); } catch (e) {} S.src = null; } if (S.playing) { setPlayIcon(S.playing, false); S.playing = null; } }
+  function playBuf(data, sr, owner) {
+    stop(); var c = ctx(); var buf = c.createBuffer(1, data.length, sr); buf.copyToChannel(data, 0);
+    var s = c.createBufferSource(); s.buffer = buf; var g = c.createGain(); g.gain.value = 0.8; s.connect(g); g.connect(c.destination);
+    s.onended = function () { if (S.src === s) { S.src = null; if (S.playing) setPlayIcon(S.playing, false); S.playing = null; } };
+    s.start(); S.src = s; S.playing = owner || null; if (owner) setPlayIcon(owner, true);
+  }
+  var ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  var ICON_STOP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4h8v8H4z"/></svg>';
+  function setPlayIcon(btn, on) { if (btn && btn.classList.contains("play")) { btn.innerHTML = on ? ICON_STOP : ICON_PLAY; btn.setAttribute("aria-label", on ? "Stopp" : "Abspielen"); } }
+
+  // ---------- drawing ----------
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function drawMap(canvas, trace, p0) {
+    var dpr = window.devicePixelRatio || 1, W = canvas.clientWidth || 260, H = canvas.clientHeight || 120;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    var g = canvas.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    var lo = Math.log2(p0 / 2), hi = Math.log2(p0 * 12);
+    function y(f) { return H - 6 - (Math.log2(Math.max(f, 1)) - lo) / (hi - lo) * (H - 12); }
+    g.strokeStyle = cssVar("--guide"); g.lineWidth = 1;
+    for (var k = 1; k <= 12; k++) { var yy = Math.round(y(k * p0)) + 0.5; g.beginPath(); g.moveTo(0, yy); g.lineTo(W, yy); g.stroke(); }
+    if (!trace) return;
+    var amax = 1e-9, i = 0;
+    while (i < trace.length) { var n = trace[i + 1]; for (var j = 0; j < n; j++) amax = Math.max(amax, trace[i + 2 + 2 * j + 1]); i += 2 + 2 * n; }
+    g.fillStyle = cssVar("--partial"); i = 0;
+    while (i < trace.length) {
+      var t = trace[i], m = trace[i + 1], xx = t / 4 * W;
+      for (var q = 0; q < m; q++) { var f = trace[i + 2 + 2 * q], a = trace[i + 3 + 2 * q];
+        var yv = y(f); if (yv < 0 || yv > H) continue; g.globalAlpha = Math.min(1, 0.08 + 0.92 * a / amax); g.fillRect(xx, yv - 1, 1.6, 2); }
+      i += 2 + 2 * m;
+    }
+    g.globalAlpha = 1;
+  }
+
+  // ---------- meters ----------
+  var METERS = [
+    ["harmony", "Harmonie", function (v) { return v.toFixed(2); }, function (v) { return (v + 0.1) / 0.7; }],
+    ["brightness", "Helligkeit", function (v) { return v.toFixed(2) + "×"; }, function (v) { return Math.log2(Math.max(v, 1)) / 2; }],
+    ["inharmonicity", "Unharmonie", function (v) { return Math.round(v) + " ct"; }, function (v) { return v / 40; }],
+    ["beating", "Schwebung", function (v) { return v.toFixed(1) + " Hz"; }, function (v) { return v / 3; }],
+    ["attack", "Einschwingen", function (v) { return v == null ? "–" : Math.round(v * 1000) + " ms"; }, function (v) { return v == null ? 0 : v / 0.6; }],
+    ["unrest", "Unruhe", function (v) { return v.toFixed(2); }, function (v) { return v / 0.3; }]
+  ];
+  function metersHtml() { return METERS.map(function (m) { return '<div class="meter" data-k="' + m[0] + '"><b>' + m[1] + '<i>–</i></b><div class="bar"><span></span></div></div>'; }).join(""); }
+  function fillMeters(root, met) {
+    METERS.forEach(function (m) { var el = root.querySelector('.meter[data-k="' + m[0] + '"]'); if (!el) return; var v = met[m[0]];
+      el.querySelector("i").textContent = m[2](v); el.querySelector(".bar > span").style.width = Math.round(100 * Math.max(0, Math.min(1, m[3](v)))) + "%"; });
+  }
+
+  // ---------- cards ----------
+  function cardLabel(nt) { return "G" + nt.gen + " · " + nt.id.split("-")[1]; }
+  function noteName(f) { var midi = Math.round(69 + 12 * Math.log2(f / 440)); return NOTES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1); }
+  function renderGrid() {
+    var grid = $("grid"); grid.innerHTML = "";
+    S.notes.forEach(function (nt) {
+      var el = document.createElement("article"); el.className = "card loading"; el.id = "card-" + nt.id;
+      el.innerHTML =
+        '<div class="card-head"><button class="play" aria-label="Abspielen">' + ICON_PLAY + '</button>' +
+        '<div><div class="card-id">' + cardLabel(nt) + (nt.elite ? " · Kopie" : "") + '</div><div class="card-id">' + noteName(nt.pitch) + (nt.wander > 0 ? " · wandert" : "") + '</div></div>' +
+        '</div>' +
+        '<canvas class="map" aria-label="Teiltöne über die Zeit"></canvas>' +
+        '<div class="meters">' + metersHtml() + '</div>' +
+        '<div class="chips"></div>' +
+        '<div class="card-foot"><button class="small ab" title="Derselbe Regelsatz ohne Kopplung und ohne Kombinationstöne">Ohne Wechselwirkung</button>' +
+        '<button class="small pt" title="Derselbe Regelsatz auf fünf Tonhöhen">Tonhöhen-Test</button><span class="status">berechne …</span></div>';
+      grid.appendChild(el);
+      el.querySelector(".play").addEventListener("click", function (ev) { onPlay(nt, ev.currentTarget); });
+      el.querySelector(".ab").addEventListener("click", function (ev) { onAB(nt, ev.currentTarget); });
+      el.querySelector(".pt").addEventListener("click", function (ev) { onPitchTest(nt, ev.currentTarget); });
+      renderChips(nt);
+      drawMap(el.querySelector("canvas"), null, nt.pitch);
+    });
+  }
+  function renderChips(nt) {
+    var el = $("card-" + nt.id); if (!el) return; var box = el.querySelector(".chips"); box.innerHTML = "";
+    S.vocab.forEach(function (t) {
+      var b = document.createElement("button"); b.className = "chip"; b.textContent = t; b.setAttribute("aria-pressed", nt.tags.indexOf(t) >= 0 ? "true" : "false");
+      b.addEventListener("click", function () { toggleTag(nt, t); }); box.appendChild(b);
+    });
+    el.classList.toggle("tagged", nt.tags.length > 0);
+  }
+  function updateCard(nt) {
+    var el = $("card-" + nt.id); if (!el || !nt.res) return;
+    el.classList.remove("loading");
+    drawMap(el.querySelector("canvas"), nt.res.trace, nt.pitch);
+    fillMeters(el, nt.res.metrics);
+    el.querySelector(".status").textContent = nt.res.n ? nt.res.metrics.partials + " Teiltöne · " + nt.res.metrics.clusters + " Gruppen" : "verstummt";
+  }
+  function startGeneration(list) {
+    stop(); S.notes = list; renderGrid(); updateGenInfo();
+    list.forEach(function (nt) {
+      compute({ genome: nt.genome, pitch: nt.pitch, seed: nt.seed, wander: nt.wander }).then(function (r) { if (S.notes.indexOf(nt) < 0) return; nt.res = r; updateCard(nt); });
+    });
+    snapshotHot();
+  }
+  function updateGenInfo() { $("genInfo").textContent = "Generation " + S.gen + " · " + S.notes.length + " Töne"; }
+
+  // ---------- actions ----------
+  function onPlay(nt, btn) {
+    if (S.playing === btn) { stop(); return; }
+    if (!nt.res) { hint("Dieser Ton wird noch berechnet."); return; }
+    playBuf(nt.res.audio, nt.res.sr, btn);
+  }
+  function onAB(nt, btn) {
+    if (nt.ab) { playBuf(nt.ab.audio, nt.ab.sr, null); return; }
+    btn.disabled = true; btn.textContent = "berechne …";
+    compute({ genome: nt.genome, pitch: nt.pitch, seed: nt.seed, wander: nt.wander, interaction: false }, true).then(function (r) {
+      nt.ab = r; btn.disabled = false; btn.textContent = "Ohne Wechselwirkung"; playBuf(r.audio, r.sr, null);
+    });
+  }
+  function onPitchTest(nt, btn) {
+    var steps = [-12, -5, 0, 7, 12];
+    btn.disabled = true; btn.textContent = "berechne …";
+    Promise.all(steps.map(function (s) { return compute({ genome: nt.genome, pitch: nt.pitch * Math.pow(2, s / 12), seed: nt.seed + s + 100, wander: nt.wander }, true); })).then(function (rs) {
+      var seg = Math.floor(1.3 * rs[0].sr), gap = Math.floor(0.08 * rs[0].sr), out = new Float32Array(rs.length * (seg + gap));
+      rs.forEach(function (r, k) { var off = k * (seg + gap), fade = Math.floor(0.03 * r.sr);
+        for (var i = 0; i < seg && i < r.audio.length; i++) { var env = i < fade ? i / fade : (i > seg - fade ? (seg - i) / fade : 1); out[off + i] = r.audio[i] * env; } });
+      btn.disabled = false; btn.textContent = "Tonhöhen-Test"; playBuf(out, rs[0].sr, null);
+      hint("Tonhöhen-Test: " + steps.map(function (s) { return noteName(nt.pitch * Math.pow(2, s / 12)); }).join(" → ") + ", je 1,3 s.");
+    });
+  }
+  function hint(t) { $("hint").textContent = t || ""; }
+
+  // ---------- tags & archive ----------
+  var writeTimers = new Map();
+  function toggleTag(nt, t) {
+    var i = nt.tags.indexOf(t); if (i >= 0) nt.tags.splice(i, 1); else nt.tags.push(t);
+    renderChips(nt); persistNote(nt); refreshSources(); snapshotHot();
+  }
+  function noteDoc(nt) {
+    return { genome: nt.genome, seed: nt.seed, pitch: nt.pitch, wander: nt.wander, tags: nt.tags.slice(), parents: nt.parents || [], gen: nt.gen,
+             created: nt.created, metrics: nt.res ? roundObj(nt.res.metrics) : null, engine: "instrument-v2" };
+  }
+  function roundObj(o) { var r = {}; for (var k in o) r[k] = typeof o[k] === "number" ? +o[k].toFixed(4) : o[k]; return r; }
+  function persistNote(nt) {
+    if (nt.tags.length) S.archive.set(nt.id, noteDoc(nt)); else S.archive.delete(nt.id);
+    renderArchive();
+    clearTimeout(writeTimers.get(nt.id));
+    writeTimers.set(nt.id, setTimeout(function () {
+      if (S.db) {
+        var ref = S.db.collection("notes").doc(nt.id);
+        (nt.tags.length ? ref.set(noteDoc(nt)) : ref.delete()).catch(function (e) { setStore("Speichern fehlgeschlagen: " + (e && e.code || "unbekannt"), false); });
+      } else { lsSet("tg-archive", Array.from(S.archive.entries())); }
+    }, 700));
+  }
+  function renderVocab() {
+    var box = $("vocab"); box.querySelectorAll(".chip, form").forEach(function (n) { n.remove(); });
+    S.vocab.forEach(function (t) { var s = document.createElement("span"); s.className = "chip"; s.textContent = t; box.appendChild(s); });
+    var f = document.createElement("form"); f.style.display = "flex"; f.style.gap = "6px";
+    f.innerHTML = '<input id="newTag" type="text" placeholder="eigener Begriff" maxlength="24" aria-label="Neue Eigenschaft"><button class="small" type="submit">Hinzufügen</button>';
+    f.addEventListener("submit", function (e) { e.preventDefault(); var v = $("newTag").value.trim().toLowerCase(); if (!v || S.vocab.indexOf(v) >= 0) return;
+      S.vocab.push(v); saveVocab(); renderVocab(); S.notes.forEach(renderChips); refreshSources(); });
+    box.appendChild(f);
+  }
+  function saveVocab() { lsSet("tg-vocab", S.vocab); if (S.db) S.db.doc("meta/vocab").set({ terms: S.vocab }).catch(function () {}); }
+  function tagCounts() { var c = {}; S.archive.forEach(function (d) { (d.tags || []).forEach(function (t) { c[t] = (c[t] || 0) + 1; }); }); return c; }
+  function refreshSources() {
+    var c = tagCounts(), a = $("srcA"), b = $("srcB"), va = a.value, vb = b.value;
+    var marked = S.notes.filter(function (n) { return n.tags.length; }).length;
+    a.innerHTML = '<option value="__marked">Markierte dieser Generation (' + marked + ')</option>';
+    b.innerHTML = '<option value="">– nicht kreuzen –</option>';
+    Object.keys(c).sort().forEach(function (t) {
+      a.insertAdjacentHTML("beforeend", '<option value="' + t + '">Archiv: ' + t + ' (' + c[t] + ')</option>');
+      b.insertAdjacentHTML("beforeend", '<option value="' + t + '">Archiv: ' + t + ' (' + c[t] + ')</option>');
+    });
+    if ([].some.call(a.options, function (o) { return o.value === va; })) a.value = va;
+    if ([].some.call(b.options, function (o) { return o.value === vb; })) b.value = vb;
+  }
+  function renderArchive() {
+    var c = tagCounts(), fb = $("archFilter"); fb.innerHTML = "";
+    var all = document.createElement("button"); all.className = "chip"; all.textContent = "alle (" + S.archive.size + ")"; all.setAttribute("aria-pressed", S.filter ? "false" : "true");
+    all.addEventListener("click", function () { S.filter = null; renderArchive(); }); fb.appendChild(all);
+    Object.keys(c).sort().forEach(function (t) { var b = document.createElement("button"); b.className = "chip"; b.textContent = t + " (" + c[t] + ")";
+      b.setAttribute("aria-pressed", S.filter === t ? "true" : "false"); b.addEventListener("click", function () { S.filter = t; renderArchive(); }); fb.appendChild(b); });
+    var list = $("archList"); list.innerHTML = "";
+    var items = Array.from(S.archive.entries()).filter(function (e) { return !S.filter || (e[1].tags || []).indexOf(S.filter) >= 0; })
+      .sort(function (x, y) { return (y[1].created || "").localeCompare(x[1].created || ""); });
+    if (!items.length) { list.innerHTML = '<div class="empty">Noch nichts im Archiv. Markiere oben bei einem Ton eine Eigenschaft, dann landet er hier und kann als Elternteil dienen.</div>'; return; }
+    items.forEach(function (e) {
+      var id = e[0], d = e[1], it = document.createElement("div"); it.className = "arch-item";
+      it.innerHTML = '<div class="row"><button class="play small" aria-label="Abspielen">' + ICON_PLAY + '</button><div><div class="card-id">G' + d.gen + ' · ' + id.split("-")[1] + ' · ' + noteName(d.pitch) + '</div>' +
+        '<div class="tags">' + (d.tags || []).join(", ") + '</div></div></div>';
+      it.querySelector(".play").addEventListener("click", function (ev) {
+        var btn = ev.currentTarget; if (S.playing === btn) { stop(); return; }
+        btn.disabled = true; compute({ genome: d.genome, pitch: pitch(), seed: d.seed, wander: d.wander || 0 }, true).then(function (r) { btn.disabled = false; playBuf(r.audio, r.sr, btn); });
+      });
+      list.appendChild(it);
+    });
+  }
+  function setStore(t, ok) { var s = $("store"); s.textContent = t; s.classList.toggle("ok", !!ok); }
+
+  // ---------- breeding ----------
+  function pool(src) {
+    if (src === "__marked") return S.notes.filter(function (n) { return n.tags.length; }).map(function (n) { return { id: n.id, genome: n.genome }; });
+    var out = []; S.archive.forEach(function (d, id) { if ((d.tags || []).indexOf(src) >= 0) out.push({ id: id, genome: d.genome }); }); return out;
+  }
+  function breed() {
+    var A = pool($("srcA").value), bsrc = $("srcB").value, B = bsrc ? pool(bsrc) : null;
+    if (!A.length) { hint($("srcA").value === "__marked" ? "Markiere zuerst bei mindestens einem Ton eine Eigenschaft." : "Diese Eigenschaft hat noch keine Töne im Archiv."); return; }
+    if (B && !B.length) { hint("Die Eigenschaft zum Kreuzen hat noch keine Töne im Archiv."); return; }
+    hint(""); S.gen++;
+    var sigma = mut(), list = [], created = new Date().toISOString();
+    for (var i = 0; i < GEN_SIZE; i++) {
+      var pa = A[Math.floor(rng() * A.length)], pb = B ? B[Math.floor(rng() * B.length)] : (A.length > 1 && rng() < 0.6 ? A[Math.floor(rng() * A.length)] : null);
+      if (pb && pb.id === pa.id) pb = null;
+      var elite = i === 0;
+      list.push({ id: mkId(S.gen, i), gen: S.gen, genome: elite ? pa.genome.slice() : child(pa.genome, pb && pb.genome, sigma), seed: newSeed(), pitch: pitch(), wander: wander(),
+                  parents: elite ? [pa.id] : (pb ? [pa.id, pb.id] : [pa.id]), tags: [], elite: elite, created: created });
+    }
+    startGeneration(list); refreshSources();
+  }
+  function randomGeneration(first) {
+    if (!first) S.gen++;
+    var list = [], created = new Date().toISOString();
+    for (var i = 0; i < GEN_SIZE; i++) list.push({ id: mkId(S.gen, i), gen: S.gen, genome: randomGenome().map(function (v) { return +v.toFixed(4); }), seed: newSeed(), pitch: pitch(), wander: wander(), parents: [], tags: [], created: created });
+    startGeneration(list); refreshSources();
+  }
+  $("breed").addEventListener("click", breed);
+  $("random").addEventListener("click", function () { randomGeneration(false); });
+  $("pitch").addEventListener("change", function () {
+    // same rule sets and seeds at the new pitch: a live generalisation test
+    S.notes.forEach(function (n) { n.pitch = pitch(); n.res = null; n.ab = null; });
+    startGeneration(S.notes.slice());
+  });
+  $("wander").addEventListener("change", function () { hint("Wandern gilt für neu erzeugte Töne."); });
+
+  // ---------- export ----------
+  $("export").addEventListener("click", function () {
+    var data = JSON.stringify({ engine: "instrument-v2", exported: new Date().toISOString(), vocab: S.vocab, notes: Object.fromEntries(S.archive) }, null, 1);
+    if (!S.downloads) { hint("Speichern als Datei ist in dieser Ansicht nicht verfügbar."); return; }
+    S.downloads.save({ filename: "teiltongarten-archiv.json", data: data }).then(function () { hint("Archiv gesichert."); }, function (e) { if (e && e.code !== "declined") hint("Sichern nicht möglich: " + (e.code || "unbekannt")); });
+  });
+
+  // ---------- hot reload snapshot ----------
+  function snapshotHot() {
+    var h = window.claude && window.claude.hot; if (!h || !h.snapshot) return;
+    try { h.snapshot(function () { return { gen: S.gen, notes: S.notes.map(function (n) { return { id: n.id, gen: n.gen, genome: n.genome, seed: n.seed, pitch: n.pitch, wander: n.wander, parents: n.parents, tags: n.tags, elite: n.elite, created: n.created }; }) }; }); } catch (e) {}
+  }
+
+  // ---------- boot ----------
+  function start(data) {
+    S.vocab = lsGet("tg-vocab", DEFAULT_TAGS.slice());
+    var local = lsGet("tg-archive", []); local.forEach(function (e) { S.archive.set(e[0], e[1]); });
+    renderVocab(); renderArchive(); refreshSources();
+    if (data && data.notes && data.notes.length) { S.gen = data.gen || 1; startGeneration(data.notes.map(function (n) { n.tags = n.tags || []; return n; })); }
+    else randomGeneration(true);
+    connect();
+  }
+  function connect() {
+    if (!window.claude || !window.claude.use) { setStore("Speicher: nur lokal", false); return; }
+    window.claude.use("downloads").then(function (d) { S.downloads = d; if (!d) $("export").hidden = true; });
+    window.claude.use("db").then(function (db) {
+      if (!db) { setStore("Speicher: nur lokal", false); return; }
+      S.db = db; setStore("Speicher: verbunden", true);
+      db.doc("meta/vocab").get().then(function (s) { if (s.exists) { var t = (s.data() || {}).terms; if (Array.isArray(t) && t.length) { S.vocab = t; lsSet("tg-vocab", t); renderVocab(); S.notes.forEach(renderChips); refreshSources(); } } }).catch(function () {});
+      db.collection("notes").onSnapshot(function (snap) {
+        var m = new Map(); snap.docs.forEach(function (d) { if (d.exists) m.set(d.id, d.data()); });
+        S.notes.forEach(function (n) { if (n.tags.length && !m.has(n.id)) m.set(n.id, noteDoc(n)); });
+        S.archive = m; renderArchive(); refreshSources();
+      }, function (e) { setStore("Speicher: getrennt (" + (e && e.code || "?") + ")", false); });
+    });
+  }
+  var hot = window.claude && window.claude.hot;
+  if (hot && hot.ready) hot.ready(start); else start(hot && hot.data ? hot.data : {});
+})();
+</script>
