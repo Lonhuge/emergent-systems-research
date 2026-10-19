@@ -95,6 +95,7 @@ DEFAULTS = dict(
     shuffle_phase=False,
     migrate=True,
     evolve=True,
+    shared_genome=False,   # True: all partials of a run share one controller (one rule set per note)
 )
 
 
@@ -127,7 +128,10 @@ class Ecology:
         self.x = self.rng.uniform(1.0, 4.0, n)          # inharmonic random start, 110-880 Hz
         self.a = np.full(n, float(p["a_init"])) * self.rng.uniform(0.5, 1.5, n)
         self.Phi = self.rng.uniform(0, TWO_PI, n)
-        self.genome = self.rng.standard_normal((n, GENOME_LEN)) * 0.5
+        if p["shared_genome"]:
+            self.genome = np.repeat(self.rng.standard_normal((1, GENOME_LEN)) * 0.5, n, axis=0)
+        else:
+            self.genome = self.rng.standard_normal((n, GENOME_LEN)) * 0.5
         self.lineage = np.arange(n, dtype=np.int64)
         self.gen = np.zeros(n, dtype=np.int64)     # bookkeeping only, never read by the dynamics
         self.growth = np.zeros(n)

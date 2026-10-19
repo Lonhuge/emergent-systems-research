@@ -140,3 +140,10 @@ rule. A significant effect in the opposite direction is reported as REVERSED.
   collective order). That would be a substantive negative finding.
 - Neither: evolution does not matter for harmonicity in this substrate; next
   step is the substrate change (costly splitting / non-local offspring).
+
+**Amendment A status (2026-10-19): aborted before completion.** The owner
+decided that musically relevant self-organisation must happen within a note
+(seconds), not over minutes, so evolution within one sustained tone is the
+wrong architecture. The long runs were stopped; 19 of 25 runs had finished.
+Their files were deleted unanalysed (no metric was looked at). Work continues in a separate experiment with
+its own pre-registration (PRE_REGISTRATION_notes.md).
