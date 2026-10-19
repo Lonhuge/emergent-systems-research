@@ -96,3 +96,9 @@ octave pair of clusters at 104–106 Hz and 210–212 Hz in no_evolution seed 0.
 
 **Not anticipated:** one `full` run and one `no_evolution` run went extinct
 before 60 s; calibration had shown no extinctions.
+
+**Extinction check:** both extinctions are seed 3 at 29.5 s. In that seed no
+partial ever split (zero births) in `full` and `no_evolution`. Without splits
+there is no mutation, so the two conditions are identical by construction.
+Seed 3 has a hostile body landscape; this is not a bug. Its tail values come
+from a dying single partial and carry no information about organisation.
