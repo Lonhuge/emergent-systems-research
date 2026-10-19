@@ -91,6 +91,13 @@ def snapshot(eco, rng) -> dict:
     pp = pp[pp > 0]
     m["spectral_entropy_bits"] = float(-(pp * np.log2(pp)).sum())
     m["lineages_alive"] = int(np.unique(eco.lineage).size)
+    m["gen_mean"] = float(eco.gen.mean())
+    m["gen_max"] = int(eco.gen.max())
+    k = min(eco.n, 40)
+    if k > 1:
+        g = eco.genome[:k]
+        dd = np.sqrt(((g[:, None, :] - g[None, :, :]) ** 2).sum(-1))
+        m["genome_dist_mean"] = float(dd[np.triu_indices(k, 1)].mean())
     m["openness_mean"] = float(eco.c.mean())
     m["speed_abs_mean"] = float(np.abs(eco.v).mean())
 

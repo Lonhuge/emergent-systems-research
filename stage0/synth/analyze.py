@@ -33,7 +33,7 @@ PRIMARY = [
 SECONDARY = [
     "harmonicity_raw", "triad_closure_excess", "lock_magnitude", "n", "energy",
     "centroid_hz", "spectral_entropy_bits", "body_alignment", "openness_mean",
-    "speed_abs_mean", "lineages_alive", "n_triads",
+    "speed_abs_mean", "lineages_alive", "n_triads", "gen_mean", "gen_max", "genome_dist_mean",
 ]
 
 

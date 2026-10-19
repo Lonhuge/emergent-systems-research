@@ -129,6 +129,7 @@ class Ecology:
         self.Phi = self.rng.uniform(0, TWO_PI, n)
         self.genome = self.rng.standard_normal((n, GENOME_LEN)) * 0.5
         self.lineage = np.arange(n, dtype=np.int64)
+        self.gen = np.zeros(n, dtype=np.int64)     # bookkeeping only, never read by the dynamics
         self.growth = np.zeros(n)
         self.f_eff = self.freq()
         self.c = np.full(n, 0.5)
@@ -331,7 +332,7 @@ class Ecology:
 
     def _keep(self, m):
         self.x, self.a, self.Phi = self.x[m], self.a[m], self.Phi[m]
-        self.genome, self.lineage = self.genome[m], self.lineage[m]
+        self.genome, self.lineage, self.gen = self.genome[m], self.lineage[m], self.gen[m]
         self.growth, self.f_eff = self.growth[m], self.f_eff[m]
         self.c, self.v = self.c[m], self.v[m]
         self._triads_dirty = True
@@ -352,6 +353,8 @@ class Ecology:
         self.Phi = np.concatenate([self.Phi, self.Phi[idx]])
         self.genome = np.concatenate([self.genome, g])
         self.lineage = np.concatenate([self.lineage, self.lineage[idx]])
+        self.gen[idx] += 1
+        self.gen = np.concatenate([self.gen, self.gen[idx]])
         self.growth = np.concatenate([self.growth, np.zeros(k)])
         self.f_eff = np.concatenate([self.f_eff, self.freq(child_x)])
         self.c = np.concatenate([self.c, self.c[idx]])

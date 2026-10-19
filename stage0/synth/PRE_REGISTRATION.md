@@ -108,3 +108,35 @@ the coupling form, the resonance window or the agent rules:
 
 Final calibration: no extinctions, cap never reached, total energy 0.6–1.2 in
 all five conditions.
+
+---
+
+## Amendment A (2026-10-19): long runs
+
+Written after the 60-second main results were known (H1 not supported; H3 and
+H4 pointing the other way, not robustly). This amendment does not change any
+of the above; it adds a separate, pre-registered experiment.
+
+**Why:** 60 s gives a few hundred births per run. The evolution question (H4)
+and the observation that agent behaviour seems to erode harmonic order need
+more time to be judged fairly.
+
+**Design:** same five conditions, same frozen parameters, **600 s** simulated
+time, **fresh seeds 10–14** (seeds 0–4 are not reused). Snapshot every 1 s.
+Audio segments 0–4 s, 296–300 s, 596–600 s.
+
+**Added bookkeeping (read-only, verified not to change trajectories):**
+generation counter per partial (`gen_mean`, `gen_max`) and genome diversity
+(`genome_dist_mean`).
+
+**Hypotheses:** L-H1a/b, L-H2a/b, L-H3, L-H4 are H1a/b, H2a/b, H3, H4 above,
+evaluated on the last 25% of the long runs (450–600 s) with the same decision
+rule. A significant effect in the opposite direction is reported as REVERSED.
+
+**Interpretation fixed in advance:**
+- L-H4 supported: evolution needs time; the 60-s null result on H4 was too short.
+- L-H4 REVERSED (no_evolution robustly more harmonic): heritable adaptation
+  actively erodes harmonic order in this ecology (individual advantage versus
+  collective order). That would be a substantive negative finding.
+- Neither: evolution does not matter for harmonicity in this substrate; next
+  step is the substrate change (costly splitting / non-local offspring).
