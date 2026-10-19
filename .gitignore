@@ -5,3 +5,6 @@ __pycache__/
 node_modules/
 stage0/results/*.json
 stage0/results/summary_*.md
+stage0/synth/results/*
+!stage0/synth/results/.gitkeep
+__pycache__/
