@@ -111,6 +111,7 @@ DEFAULTS = dict(
     birth_top=8,           # only the strongest partials take part in birth checks
     a_seed=0.03,           # amplitude of a newborn combination partial
     pull_clip_hz=None,     # if set: cap the summed phase pull per partial at this many Hz
+    phys=None,             # v3 instrument physics (dict from sim/instrument.physics); None = fixed physics
 )
 N_BODY = 12
 
@@ -147,14 +148,33 @@ class Ecology:
             self.body_x, self.body_alpha = make_body(
                 self.rng, 1200, p["x_min"], p["x_max"], p["body_scale"], p["alpha_mean"], p["alpha_var"])
         n = int(p["n_init"])
+        self.phys = p["phys"]
+        self.drive = 1.0
         if p["pitch_hz"] is not None:
             self.x0 = float(np.log2(p["pitch_hz"] / p["f_ref"]))
-            self.x = np.clip(self.x0 + self.rng.standard_normal(n) * p["init_spread"], p["x_min"], p["x_max"])
+            centres = [self.x0] * n
+            depths = [1.0] * n
+            if self.phys is not None:
+                for r in self.phys["res"]:
+                    centres += [self.x0 + r["pos"]] * 2
+                    depths += [r["depth"]] * 2
+            n = len(centres)
+            self.x = np.empty(n)
+            self._seed_depth = np.asarray(depths)
+            for i in range(n):
+                self.x[i] = np.clip(centres[i] + self.rng.standard_normal() * p["init_spread"], p["x_min"], p["x_max"])
         else:
             self.x0 = None
             self.x = self.rng.uniform(1.0, 4.0, n)      # inharmonic random start, 110-880 Hz
-        self.a = np.full(n, float(p["a_init"])) * self.rng.uniform(0.5, 1.5, n)
-        self.Phi = self.rng.uniform(0, TWO_PI, n)
+        if p["pitch_hz"] is not None:
+            # same draw order as the browser engine: x, a, Phi per partial
+            self.a = np.full(n, float(p["a_init"])) * self.rng.uniform(0.5, 1.5, n)
+            if self.phys is not None:
+                self.a = self.a * np.maximum(0.5, self._seed_depth)
+            self.Phi = self.rng.uniform(0, TWO_PI, n)
+        else:
+            self.a = np.full(n, float(p["a_init"])) * self.rng.uniform(0.5, 1.5, n)
+            self.Phi = self.rng.uniform(0, TWO_PI, n)
         if p["genome"] is not None:
             self.genome = np.repeat(np.asarray(p["genome"], float).reshape(1, GENOME_LEN), n, axis=0)
         elif p["shared_genome"]:
@@ -188,13 +208,18 @@ class Ecology:
         p = self.p
         if self.x0 is not None and p["pitch_mode"] == "exciter":
             return p["g"] * np.exp(-0.5 * ((x - self.x0) / p["exciter_sigma"]) ** 2)
-        return p["g"] * np.exp(-p["exciter_tilt"] * x) * (1.0 - np.exp(-x / p["exciter_low"]))
+        return self.drive * p["g"] * np.exp(-p["exciter_tilt"] * x) * (1.0 - np.exp(-x / p["exciter_low"]))
 
     def body_net_gain(self, x, comp=1.0):
         alpha = np.interp(x, self.body_x, self.body_alpha)
         if self.x0 is not None and self.p["pitch_mode"] == "resonance":
             alpha = alpha - self.p["resonance_depth"] * self.p["alpha_mean"] * np.exp(
                 -0.5 * ((x - self.x0) / self.p["exciter_sigma"]) ** 2)
+            if self.phys is not None:
+                for r in self.phys["res"]:
+                    alpha = alpha - r["depth"] * self.p["resonance_depth"] * self.p["alpha_mean"] * np.exp(
+                        -0.5 * ((x - self.x0 - r["pos"]) / self.p["exciter_sigma"]) ** 2)
+                alpha = np.maximum(alpha, 0.05 * self.p["alpha_mean"]) * self.phys["damp"]  # never self-amplifying
         return comp * self.exciter(x) - alpha
 
     def _unpack(self):
@@ -252,6 +277,8 @@ class Ecology:
         self.last_triad_w = W
         self.last_triad_prod = aj * ak * am
         q, kap = self.p["q"], self.p["kappa"]
+        if self.phys is not None:
+            q = q * self.phys["qs"] * self.drive
         if self.p["coupling"]:
             np.add.at(dA, M, q * W * aj * ak * cps)
             np.add.at(dA, J, q * W * ak * am * cps)
@@ -279,6 +306,10 @@ class Ecology:
                 out_audio = np.zeros(int(round(dt * p["sr"])))
             return out_audio
 
+        if self.phys is not None:
+            ph, tn = self.phys, self.t * dt
+            ramp = min(1.0, tn / max(ph["ramp"], 1e-6)) if tn < ph["sustain"] else 0.0
+            self.drive = ramp * (1.0 + ph["tremD"] * np.sin(TWO_PI * ph["tremR"] * tn))
         if self._triads_dirty or self.t % int(p["triad_refresh"]) == 0:
             self._find_triads()
             self._triads_dirty = False
@@ -326,7 +357,8 @@ class Ecology:
         np.fill_diagonal(near, 0.0)
         sat = p["h"] * (a2 + p["beta"] * (a2.sum() - a2) + p["beta_near"] * (near @ a2))
         rate = net - sat - p["cost_move"] * (v / p["v_max"]) ** 2 - p["cost_open"] * c
-        noise = p["noise"] * np.sqrt(dt) * self.rng.standard_normal(n)
+        nscale = 1.0 if self.phys is None else self.phys["ns"] * (1.0 if self.drive > 0 else 0.2)
+        noise = p["noise"] * nscale * np.sqrt(dt) * self.rng.standard_normal(n)
         a_new = a + dt * (a * rate + comp * c * dA) + a * noise
         a_new = np.clip(a_new, 0.0, 4.0)
 
@@ -354,7 +386,8 @@ class Ecology:
             self.x = np.clip(self.x + v * dt, p["x_min"], p["x_max"])
 
         # --- death
-        dead = self.a < p["a_min"]
+        a_min = p["a_min"] if (self.phys is None or self.drive > 0) else 0.25 * p["a_min"]
+        dead = self.a < a_min
         if dead.any():
             self.deaths = int(dead.sum())
             self._keep(~dead)
@@ -368,7 +401,7 @@ class Ecology:
                 idx = self.rng.choice(idx, size=max(room, 0), replace=False)
             if idx.size:
                 self._split(idx)
-        if p["births"] and self.n >= 1 and self.t % int(p["birth_every"]) == 0:
+        if p["births"] and self.drive > 0 and self.n >= 1 and self.t % int(p["birth_every"]) == 0:
             self._births()
         self.t += 1
         return out_audio
@@ -385,7 +418,8 @@ class Ecology:
         for ii in range(k):
             for jj in range(ii, k):
                 j, m = top[ii], top[jj]
-                prob = 1.0 - np.exp(-p["birth_rate"] * self.a[j] * self.a[m] * dtb)
+                bs = 1.0 if self.phys is None else self.phys["bs"]
+                prob = 1.0 - np.exp(-p["birth_rate"] * bs * self.a[j] * self.a[m] * dtb)
                 cands = [(f[j] + f[m], self.Phi[j] + self.Phi[m])]
                 if j != m:
                     hi, lo = (j, m) if f[j] >= f[m] else (m, j)

@@ -69,6 +69,7 @@ canvas.map { width: 100%; height: 120px; display: block; border-radius: 6px; bac
 .card .chips { gap: 4px; }
 .chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); border-color: var(--accent); }
 .status { font-family: var(--font-mono); font-size: 11px; color: var(--muted); min-height: 1em; }
+.phys { font-size: 12px; color: var(--muted); }
 .loading canvas.map { opacity: 0.35; }
 section.archive { display: grid; gap: 10px; }
 h2 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -0.01em; }
@@ -121,8 +122,10 @@ details.about strong { color: var(--ink); font-weight: 600; }
   <details class="about">
     <summary>Was hier emergent ist und was nicht</summary>
     <ul>
-      <li><strong>Kein Ton enthält eine Obertonreihe.</strong> Der Klangkörper hat nur eine Resonanz bei der gewählten Tonhöhe. Obertöne entstehen, weil eine quadratische Nichtlinearität Kombinationstöne bei f₁ + f₂ und |f₁ − f₂| erzeugt und Dreiklänge in der Phase einrasten. Das ist bekannte Physik.</li>
-      <li><strong>Die Klangfarbe kommt aus den Regeln.</strong> Alle Teiltöne eines Tons teilen sich einen kleinen Controller (8 Sinne, 6 Neuronen, 3 Handlungen: wandern, sich öffnen, teilen) und ein Korpusprofil aus 12 Werten. Diese 87 Zahlen sind das Genom, das du züchtest. Niemand legt fest, wie es klingen soll.</li>
+      <li><strong>Kein Ton enthält eine Obertonreihe.</strong> Der Klangkörper hat eine Resonanz bei der gewählten Tonhöhe und je nach Genom bis zu drei weitere in beliebigem, meist unharmonischem Verhältnis. Obertöne und Mischtöne entstehen, weil eine quadratische Nichtlinearität Kombinationstöne bei f₁ + f₂ und |f₁ − f₂| erzeugt und Dreiklänge in der Phase einrasten. Das ist bekannte Physik.</li>
+      <li><strong>Das Genom hat 101 Zahlen.</strong> 75 bilden den Controller, den sich alle Teiltöne eines Tons teilen (8 Sinne, 6 Neuronen, 3 Handlungen: wandern, sich öffnen, teilen). 12 formen das Korpusprofil. 14 legen die Instrumentenphysik fest: wie lange angeregt wird, vom Anschlag bis zum Dauerton, wie schnell, wie stark gedämpft, wo Zusatzresonanzen liegen, wie stark Kopplung, Kombinationstöne und Rauschen wirken, und ob ein Tremolo da ist. Niemand legt fest, wie es klingen soll.</li>
+      <li><strong>Warum die Physik im Genom steckt:</strong> In der ersten Version war die Physik fest, ein dauerhaft angeblasener Erreger auf einer Resonanz. Alles klang nach Oboe oder Fagott, weil die Regeln der Agenten im Wesentlichen nur die Klangneigung verschoben. Instrumentenfamilien unterscheiden sich vor allem durch Erreger und Klangkörper.</li>
+      <li><strong>Zufall spielt mit.</strong> Besonders Töne mit mehreren Resonanzen klingen je nach Zufallsfolge sehr verschieden. Ein Ton wird mit seiner Zufallsfolge gespeichert und klingt immer gleich. Ob sein Charakter zum Regelsatz gehört, zeigt der Tonhöhen-Test.</li>
       <li><strong>Die Karte zeigt die Agenten.</strong> Jeder Punkt ist ein Teilton zu einem Zeitpunkt, die Helligkeit ist seine Lautstärke. Die feinen Linien markieren Vielfache der Tonhöhe als Orientierung, die Teiltöne kennen sie nicht.</li>
       <li><strong>Ohne Wechselwirkung</strong> spielt denselben Regelsatz mit abgeschalteter Kopplung und ohne Kombinationstöne. Was dann fehlt, ist durch die Wechselwirkung entstanden.</li>
       <li><strong>Der Tonhöhen-Test</strong> spielt denselben Regelsatz auf fünf Tonhöhen, die beim Züchten nie vorkamen. Bleibt der Charakter erhalten, ist er eine Eigenschaft der Regeln.</li>
@@ -133,12 +136,13 @@ details.about strong { color: var(--ink); font-weight: 600; }
 </div>
 
 <script type="text/plain" id="engine-src">/*__ENGINE__*/</script>
+<script>/*__ENGINE__*/</script>
 <script>
 (function () {
   "use strict";
   var NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","H"];
   var DEFAULT_TAGS = ["glockig","warm","hell","hohl","rau","schwebend","ruhig","lebendig","perkussiv","stimmhaft","fremd","instrumentnah"];
-  var GEN_SIZE = 12, GLEN = 75, FULL = 87;
+  var GEN_SIZE = 12, GLEN = 75, V2 = 87, FULL = 101;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- state ----------
@@ -191,10 +195,15 @@ details.about strong { color: var(--ink); font-weight: 600; }
   // ---------- genomes ----------
   var rng = Math.random;
   function gauss() { var u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
-  function randomGenome() { var g = []; for (var i = 0; i < FULL; i++) g.push(i < GLEN ? gauss() * 0.5 : gauss()); return g; }
+  function randomGenome() { var g = []; for (var i = 0; i < FULL; i++) g.push(i < GLEN ? gauss() * 0.5 : (i < V2 ? gauss() : gauss() * 1.5)); return g; }
+  // v2 genomes (87 genes, fixed reed-like physics) keep their physics: offspring stay v2 unless crossed with a v3 parent
   function child(pa, pb, sigma) {
-    var g = [];
-    for (var i = 0; i < FULL; i++) { var base = pb && rng() < 0.5 ? pb[i] : pa[i]; g.push(+(base + gauss() * sigma).toFixed(4)); }
+    var len = Math.max(pa.length, pb ? pb.length : 0), g = [];
+    for (var i = 0; i < len; i++) {
+      var va = i < pa.length ? pa[i] : null, vb = pb && i < pb.length ? pb[i] : null;
+      var base = va === null ? vb : (vb === null ? va : (rng() < 0.5 ? vb : va));
+      g.push(+(base + gauss() * sigma).toFixed(4));
+    }
     return g;
   }
   function newSeed() { return Math.floor(rng() * 4294967295); }
@@ -243,7 +252,8 @@ details.about strong { color: var(--ink); font-weight: 600; }
     ["inharmonicity", "Unharmonie", function (v) { return Math.round(v) + " ct"; }, function (v) { return v / 40; }],
     ["beating", "Schwebung", function (v) { return v.toFixed(1) + " Hz"; }, function (v) { return v / 3; }],
     ["attack", "Einschwingen", function (v) { return v == null ? "–" : Math.round(v * 1000) + " ms"; }, function (v) { return v == null ? 0 : v / 0.6; }],
-    ["unrest", "Unruhe", function (v) { return v.toFixed(2); }, function (v) { return v / 0.3; }]
+    ["unrest", "Unruhe", function (v) { return v.toFixed(1); }, function (v) { return v / 10; }],
+    ["decay", "Ausklingen", function (v) { return v == null ? "hält" : (v < 1 ? Math.round(v * 1000) + " ms" : v.toFixed(1) + " s"); }, function (v) { return v == null ? 1 : v / 3; }]
   ];
   function metersHtml() { return METERS.map(function (m) { return '<div class="meter" data-k="' + m[0] + '"><b>' + m[1] + '<i>–</i></b><div class="bar"><span></span></div></div>'; }).join(""); }
   function fillMeters(root, met) {
@@ -252,6 +262,15 @@ details.about strong { color: var(--ink); font-weight: 600; }
   }
 
   // ---------- cards ----------
+  function fmtS(v) { return v < 1 ? Math.round(v * 1000) + " ms" : v.toFixed(1).replace(".", ",") + " s"; }
+  function physLine(genome) {
+    var ph = PartialEngine.physics(genome);
+    if (ph.v2) return "Dauerton · Rohrblatt-Physik (alte Generation)";
+    var exc = ph.sustain >= 3.9 ? "Dauerton" : (ph.sustain < 0.05 ? "Anschlag " + fmtS(ph.sustain) : "angeregt " + fmtS(ph.sustain));
+    var damp = ph.damp < 0.1 ? "klingt lange" : (ph.damp < 0.4 ? "mittel gedämpft" : "stark gedämpft");
+    var res = ph.res.length ? ph.res.length + " Zusatzresonanz" + (ph.res.length > 1 ? "en" : "") + " " + ph.res.map(function (r) { return "×" + Math.pow(2, r.pos).toFixed(2).replace(".", ","); }).join(" ") : "eine Resonanz";
+    return exc + " · " + damp + " · " + res + (ph.tremD > 0.05 ? " · Tremolo" : "");
+  }
   function cardLabel(nt) { return "G" + nt.gen + " · " + nt.id.split("-")[1]; }
   function noteName(f) { var midi = Math.round(69 + 12 * Math.log2(f / 440)); return NOTES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1); }
   function renderGrid() {
@@ -263,6 +282,7 @@ details.about strong { color: var(--ink); font-weight: 600; }
         '<div><div class="card-id">' + cardLabel(nt) + (nt.elite ? " · Kopie" : "") + '</div><div class="card-id">' + noteName(nt.pitch) + (nt.wander > 0 ? " · wandert" : "") + '</div></div>' +
         '</div>' +
         '<canvas class="map" aria-label="Teiltöne über die Zeit"></canvas>' +
+        '<div class="phys">' + physLine(nt.genome) + '</div>' +
         '<div class="meters">' + metersHtml() + '</div>' +
         '<div class="chips"></div>' +
         '<div class="card-foot"><button class="small ab" title="Derselbe Regelsatz ohne Kopplung und ohne Kombinationstöne">Ohne Wechselwirkung</button>' +
@@ -288,7 +308,9 @@ details.about strong { color: var(--ink); font-weight: 600; }
     el.classList.remove("loading");
     drawMap(el.querySelector("canvas"), nt.res.trace, nt.pitch);
     fillMeters(el, nt.res.metrics);
-    el.querySelector(".status").textContent = nt.res.n ? nt.res.metrics.partials + " Teiltöne · " + nt.res.metrics.clusters + " Gruppen" : "verstummt";
+    var m = nt.res.metrics;
+    el.querySelector(".status").textContent = m.attack == null ? "stumm, der Ton springt nicht an" :
+      m.clusters + " Teiltongruppen am Höhepunkt · " + (nt.res.n ? "klingt bis zum Ende" : "ausgeklungen");
   }
   function startGeneration(list) {
     stop(); S.notes = list; renderGrid(); updateGenInfo();

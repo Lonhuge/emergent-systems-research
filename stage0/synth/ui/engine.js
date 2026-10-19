@@ -7,7 +7,9 @@
   "use strict";
   var N_IN = 8, N_HID = 6, N_OUT = 3;
   var GLEN = N_IN * N_HID + N_HID + N_HID * N_OUT + N_OUT; // 75
-  var N_BODY = 12, FULL_LEN = GLEN + N_BODY;               // 87
+  var N_BODY = 12, N_PHYS = 14;
+  var V2_LEN = GLEN + N_BODY;                               // 87: v2 genomes (fixed reed-like physics)
+  var FULL_LEN = V2_LEN + N_PHYS;                           // 101: v3 genomes carry instrument physics
   var TWO_PI = Math.PI * 2, K = 50;
   var P = {
     dt: 0.001, sr: 32000, f_ref: 55, x_min: 0, x_max: 6, n_init: 6, n_max: 160,
@@ -33,8 +35,26 @@
   function randomGenome(rng) {
     var g = new Array(FULL_LEN);
     for (var i = 0; i < GLEN; i++) g[i] = rng.n() * 0.5;
-    for (var j = GLEN; j < FULL_LEN; j++) g[j] = rng.n();
+    for (var j = GLEN; j < FULL_LEN; j++) g[j] = rng.n() * (j >= V2_LEN ? 1.5 : 1);
     return g;
+  }
+
+  /* Physics genes -> instrument physics. Missing genes (v2 genome) = v2 physics. */
+  function sig(z) { return 1 / (1 + Math.exp(-z)); }
+  function physics(genome) {
+    if (genome.length < FULL_LEN) return { v2: true, sustain: 1e9, ramp: 0, damp: 1, res: [], qs: 1, bs: 1, ns: 1, tremD: 0, tremR: 0 };
+    var u = genome.slice(V2_LEN, FULL_LEN).map(sig), res = [];
+    for (var r = 0; r < 3; r++) { var depth = Math.max(0, 2 * u[3 + r] - 1); if (depth > 0) res.push({ pos: 3 * u[6 + r], depth: depth }); }
+    return { v2: false,
+      sustain: 0.01 * Math.pow(400, u[0]),       // 10 ms (struck/plucked) .. 4 s (held)
+      ramp: 0.001 * Math.pow(300, u[1]),         // 1 ms .. 300 ms rise
+      damp: 0.03 * Math.pow(1 / 0.03, u[2]),     // 0.03 (rings) .. 1 (heavily damped)
+      res: res,                                  // extra body resonances, 0..3 octaves above the pitch, any ratio
+      qs: Math.pow(2, 4 * u[9] - 2),             // coupling strength x0.25 .. x4
+      bs: Math.pow(2, 4 * u[10] - 2),            // combination-tone rate x0.25 .. x4
+      ns: Math.pow(2, 4 * u[11] - 2),            // drive noise x0.25 .. x4
+      tremD: Math.max(0, 2 * u[12] - 1) * 0.6,   // tremolo depth 0 .. 0.6
+      tremR: 2 + 8 * u[13] };                    // tremolo rate 2 .. 10 Hz
   }
 
   function play(opts) {
@@ -45,13 +65,17 @@
     var dt = P.dt, migrate = wander > 0, vmax = migrate ? wander : 1e-9;
     var q = interaction ? P.q : 0, kap = interaction ? P.kappa : 0, births = interaction;
     var x0 = Math.log2(pitch / P.f_ref);
+    var ph = physics(genome);
     var cap = P.n_max + 16;
     var x = new Float64Array(cap), a = new Float64Array(cap), Phi = new Float64Array(cap);
     var growth = new Float64Array(cap), feff = new Float64Array(cap), c = new Float64Array(cap), v = new Float64Array(cap);
-    var n = P.n_init;
+    var seeds0 = [];
+    for (var i0 = 0; i0 < P.n_init; i0++) seeds0.push([x0, 1]);
+    ph.res.forEach(function (r) { seeds0.push([x0 + r.pos, r.depth]); seeds0.push([x0 + r.pos, r.depth]); });
+    var n = seeds0.length;
     for (var i = 0; i < n; i++) {
-      x[i] = Math.min(P.x_max, Math.max(P.x_min, x0 + rng.n() * P.init_spread));
-      a[i] = P.a_init * (0.5 + rng.u());
+      x[i] = Math.min(P.x_max, Math.max(P.x_min, seeds0[i][0] + rng.n() * P.init_spread));
+      a[i] = P.a_init * (0.5 + rng.u()) * (ph.v2 ? 1 : Math.max(0.5, seeds0[i][1]));
       Phi[i] = rng.u() * TWO_PI; c[i] = 0.5;
       feff[i] = P.f_ref * Math.pow(2, x[i]);
     }
@@ -63,9 +87,13 @@
       var gv = body[i0] * (1 - fr) + body[i0 + 1] * fr;
       var al = Math.max(P.alpha_mean + P.alpha_var * Math.tanh(gv), 0.05 * P.alpha_mean);
       var d = (xx - x0) / P.exciter_sigma;
-      return al - P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * d * d);
+      al -= P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * d * d);
+      for (var r = 0; r < ph.res.length; r++) { var dr = (xx - x0 - ph.res[r].pos) / P.exciter_sigma;
+        al -= ph.res[r].depth * P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * dr * dr); }
+      return Math.max(al, 0.05 * P.alpha_mean) * ph.damp;   // a body never amplifies by itself
     }
-    function exciter(xx) { return P.g * Math.exp(-P.exciter_tilt * xx) * (1 - Math.exp(-xx / P.exciter_low)); }
+    var drive = 1;  // time course of the exciter, set every step
+    function exciter(xx) { return drive * P.g * Math.exp(-P.exciter_tilt * xx) * (1 - Math.exp(-xx / P.exciter_low)); }
     function netGain(xx, comp) { return comp * exciter(xx) - alphaAt(xx); }
     function freq(xx) { return P.f_ref * Math.pow(2, xx); }
 
@@ -106,6 +134,9 @@
 
     for (var st = 0; st < steps; st++) {
       if (n === 0) { if (render) { /* silence */ } if (st % 10 === 0) { trace.push(st * dt, 0); energy.push(0); } continue; }
+      var tNow = st * dt;
+      drive = ph.v2 ? 1 : (tNow < ph.sustain ? Math.min(1, tNow / Math.max(ph.ramp, 1e-6)) : 0) * (1 + ph.tremD * Math.sin(TWO_PI * ph.tremR * tNow));
+      var qd = q * ph.qs * drive, aMin = drive > 0 ? P.a_min : P.a_min * 0.25;
       if (dirty || st % P.triad_refresh === 0) { findTriads(); dirty = false; }
       // coupling
       for (var i4 = 0; i4 < n; i4++) { dA[i4] = 0; dth[i4] = 0; zr[i4] = 0; zi[i4] = 0; }
@@ -116,7 +147,7 @@
         var aj = a[J], ak = a[Kk], am = a[M];
         var afJ = Math.max(aj, P.a_floor), afK = Math.max(ak, P.a_floor), afM = Math.max(am, P.a_floor);
         if (q) {
-          dA[M] += q * W * aj * ak * cp; dA[J] += q * W * ak * am * cp; dA[Kk] += q * W * aj * am * cp;
+          dA[M] += qd * W * aj * ak * cp; dA[J] += qd * W * ak * am * cp; dA[Kk] += qd * W * aj * am * cp;
           dth[M] += kap * W * Math.min(aj * ak / afM, 3) * sp;
           dth[J] -= kap * W * Math.min(ak * am / afJ, 3) * sp;
           dth[Kk] -= kap * W * Math.min(aj * am / afK, 3) * sp;
@@ -154,7 +185,7 @@
         smod[i7] = Math.tanh(o2);
         var sat = P.h * (ai * ai + P.beta * (a2sum - ai * ai) + P.beta_near * nearA2[i7]);
         var rate = net - sat - P.cost_move * (v[i7] / vmax) * (v[i7] / vmax) - P.cost_open * c[i7];
-        var nz = P.noise * Math.sqrt(dt) * rng.n();
+        var nz = P.noise * ph.ns * Math.sqrt(dt) * rng.n() * (drive > 0 ? 1 : 0.2);
         var an = ai + dt * (ai * rate + comp * c[i7] * dA[i7]) + ai * nz;
         aNew[i7] = Math.min(4, Math.max(0, an));
       }
@@ -179,7 +210,7 @@
       }
       // death
       var anyDead = false, mask = new Uint8Array(n);
-      for (var i11 = 0; i11 < n; i11++) { mask[i11] = a[i11] >= P.a_min ? 1 : 0; if (!mask[i11]) anyDead = true; }
+      for (var i11 = 0; i11 < n; i11++) { mask[i11] = a[i11] >= aMin ? 1 : 0; if (!mask[i11]) anyDead = true; }
       if (anyDead) keep(mask);
       // split
       if (n) {
@@ -194,13 +225,13 @@
         }
       }
       // combination-tone births
-      if (births && n >= 1 && st % P.birth_every === 0) {
+      if (births && drive > 0 && n >= 1 && st % P.birth_every === 0) {
         var order = []; for (var i13 = 0; i13 < n; i13++) order.push(i13);
         order.sort(function (p1, p2) { return a[p2] - a[p1]; });
         var kTop = Math.min(n, P.birth_top), dtb = dt * P.birth_every, fLo = freq(P.x_min), fHi = freq(P.x_max), nw = [];
         for (var u1 = 0; u1 < kTop; u1++) for (var u2 = u1; u2 < kTop; u2++) {
           var jb = order[u1], mb = order[u2], fj = freq(x[jb]), fm = freq(x[mb]);
-          var prob = 1 - Math.exp(-P.birth_rate * a[jb] * a[mb] * dtb);
+          var prob = 1 - Math.exp(-P.birth_rate * ph.bs * a[jb] * a[mb] * dtb);
           var cands = [[fj + fm, Phi[jb] + Phi[mb]]];
           if (jb !== mb) { if (fj >= fm) cands.push([fj - fm, Phi[jb] - Phi[mb]]); else cands.push([fm - fj, Phi[mb] - Phi[jb]]); }
           for (var cI = 0; cI < cands.length; cI++) {
@@ -232,8 +263,9 @@
     var spec = [];
     for (var i15 = 0; i15 < n; i15++) spec.push([feff[i15], a[i15]]);
     spec.sort(function (p1, p2) { return p1[0] - p2[0]; });
-    return { audio: audio, sr: P.sr, trace: trace, energy: energy, spectrum: spec, n: n,
-             lock: lockDen > 0 ? lockNum / lockDen : 0, metrics: describe(spec, energy, pitch, seed) };
+    var met = describe(spec, energy, pitch, seed, finalSpecFromTrace(trace));
+    return { audio: audio, sr: P.sr, trace: trace, energy: energy, spectrum: spec, n: n, physics: ph,
+             lock: lockDen > 0 ? lockNum / lockDen : 0, metrics: met };
   }
 
   // ---------------- descriptors (read-only) ----------------
@@ -267,8 +299,20 @@
     if (last !== null) cl.push({ f: last, w: lw, spread: Math.sqrt(Math.max(0, sf2 / lw - (sf / lw) * (sf / lw))) });
     return cl;
   }
-  function describe(spec, energy, pitch, seed) {
-    var m = { partials: spec.length, clusters: 0, harmony: 0, brightness: 0, inharmonicity: 0, beating: 0, attack: null, unrest: 0 };
+  /* For notes that decay to silence, describe the spectrum at the moment of maximum energy. */
+  function finalSpecFromTrace(trace) {
+    var i = 0, best = null, bestE = -1;
+    while (i < trace.length) { var n = trace[i + 1], e = 0, sp = [];
+      for (var j = 0; j < n; j++) { var f = trace[i + 2 + 2 * j], a = trace[i + 3 + 2 * j]; e += a * a; sp.push([f, a]); }
+      if (e > bestE) { bestE = e; best = sp; } i += 2 + 2 * n; }
+    if (best) best.sort(function (p, q) { return p[0] - q[0]; });
+    return best || [];
+  }
+  function describe(specEnd, energy, pitch, seed, specPeak) {
+    var spec = specPeak.length ? specPeak : specEnd;   // the loudest moment characterises the sound
+    var m = { partials: specEnd.length, clusters: 0, harmony: 0, brightness: 0, inharmonicity: 0, beating: 0, attack: null, unrest: 0, decay: null };
+    var emax = 0, imax = 0; for (var e0 = 0; e0 < energy.length; e0++) if (energy[e0] > emax) { emax = energy[e0]; imax = e0; }
+    if (emax > 0) { for (var e1 = imax; e1 < energy.length; e1++) if (energy[e1] < 0.01 * emax) { m.decay = (e1 - imax) * 0.01; break; } }
     if (!spec.length) return m;
     var cl = clusterSpectrum(spec); m.clusters = cl.length;
     var cf = cl.map(function (o) { return o.f; }), cw = cl.map(function (o) { return o.w; });
@@ -286,21 +330,24 @@
     if (fund === null) fund = cf[cw.indexOf(wmax)];
     var dsum = 0, dw = 0, bsum = 0;
     for (var k = 0; k < cl.length; k++) { if (cw[k] < 0.01 * wmax) continue;
-      var hk = Math.max(1, Math.round(cf[k] / fund)); dsum += cw[k] * Math.abs(1200 * Math.log2(cf[k] / (hk * fund))); dw += cw[k];
+      var dev;
+      if (cf[k] >= fund) { var hk = Math.max(1, Math.round(cf[k] / fund)); dev = Math.abs(1200 * Math.log2(cf[k] / (hk * fund))); }
+      else { var sk = Math.max(1, Math.round(fund / cf[k])); dev = Math.abs(1200 * Math.log2(cf[k] * sk / fund)); }  // below the pitch: subharmonics
+      dsum += cw[k] * dev; dw += cw[k];
       bsum += cw[k] * cl[k].spread; }
     m.inharmonicity = dw > 0 ? dsum / dw : 0; m.beating = dw > 0 ? bsum / dw : 0;
-    // energy trace is sampled every 10 ms
-    var tail = energy.slice(Math.floor(energy.length / 2)), mean = 0;
-    for (var t = 0; t < tail.length; t++) mean += tail[t]; mean /= Math.max(1, tail.length);
-    if (mean > 0) {
-      for (var u = 0; u < energy.length; u++) if (energy[u] >= 0.5 * mean) { m.attack = u * 0.01; break; }
-      var vs = 0; for (var t2 = 0; t2 < tail.length; t2++) vs += (tail[t2] - mean) * (tail[t2] - mean);
-      m.unrest = Math.sqrt(vs / Math.max(1, tail.length)) / mean;
+    // energy trace is sampled every 10 ms; attack = time to half of the peak energy
+    if (emax > 0) {
+      for (var u = 0; u < energy.length; u++) if (energy[u] >= 0.5 * emax) { m.attack = u * 0.01; break; }
+      var win = energy.slice(imax, Math.min(energy.length, imax + 100)), mean = 0;
+      for (var t = 0; t < win.length; t++) mean += win[t]; mean /= Math.max(1, win.length);
+      var vs = 0; for (var t2 = 1; t2 < win.length; t2++) { var dlt = win[t2] - win[t2 - 1]; vs += dlt * dlt; }
+      m.unrest = mean > 0 ? Math.sqrt(vs / Math.max(1, win.length - 1)) / mean * 10 : 0;
     }
     return m;
   }
 
-  var api = { play: play, randomGenome: randomGenome, makeRng: makeRng, P: P, GLEN: GLEN, N_BODY: N_BODY, FULL_LEN: FULL_LEN,
+  var api = { physics: physics, V2_LEN: V2_LEN, N_PHYS: N_PHYS, play: play, randomGenome: randomGenome, makeRng: makeRng, P: P, GLEN: GLEN, N_BODY: N_BODY, FULL_LEN: FULL_LEN,
               clusterSpectrum: clusterSpectrum, harmonicScore: harmonicScore };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.PartialEngine = api;
 })(typeof self !== "undefined" ? self : this);
