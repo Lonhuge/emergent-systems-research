@@ -6,9 +6,21 @@ Published page: https://claude.ai/artifact/TzNC12wiRrisuquCGyNEqZ (private to th
   `sim/instrument.py`: fast notes, a low-loss body resonance at the chosen
   pitch, combination-tone births (f1 + f2, |f1 - f2|), capped phase pull, one
   shared controller per note. Genome = 75 controller weights + 12 body genes
-  + 14 physics genes (v3): drive duration from strike to held tone, rise time,
+  + 18 physics genes: drive duration from strike to held tone, rise time,
   damping, up to three extra body resonances at any ratio, coupling, birth and
-  noise strength, tremolo. 87-gene genomes keep the fixed v2 physics.
+  noise strength, tremolo (v3, 14 genes), plus strike noise, frequency-dependent
+  damping, purity (split spread and crowding penalty) and exciter brightness
+  (v4). Shorter genomes get neutral values for missing genes; 87-gene genomes
+  keep the fixed v2 physics.
+- v4 also widens the frequency range from 55-3520 Hz to 55-17300 Hz at 44.1 kHz.
+  The old ceiling was the "telephone" sound: no partial ever exceeded 3.47 kHz.
+  Triad search now uses sorting and binary search (instrument runs only; frozen
+  phase-1 runs keep the original code path and reproduce bit for bit).
+- Known limit: overtones are created from the fundamental by combination tones,
+  so they enter one after another (median onset 20/70/90/100 ms for harmonics
+  1-4), which is the brass/wind attack. Simultaneous harmonic onset, as in
+  plucked strings, would need a resonator with harmonic modes, which would hand
+  the harmonic series to the system instead of letting it emerge. Not built in.
 - Why v3: with fixed physics (held nonlinear drive on one resonance) every rule
   set sounded like an oboe or a bassoon. Across 30 random rule sets the
   controller mainly moved spectral tilt; attack, steadiness and harmonicity

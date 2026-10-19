@@ -7,12 +7,12 @@
   "use strict";
   var N_IN = 8, N_HID = 6, N_OUT = 3;
   var GLEN = N_IN * N_HID + N_HID + N_HID * N_OUT + N_OUT; // 75
-  var N_BODY = 12, N_PHYS = 14;
+  var N_BODY = 12, N_PHYS = 18, N_PHYS_V3 = 14;
   var V2_LEN = GLEN + N_BODY;                               // 87: v2 genomes (fixed reed-like physics)
   var FULL_LEN = V2_LEN + N_PHYS;                           // 101: v3 genomes carry instrument physics
   var TWO_PI = Math.PI * 2, K = 50;
   var P = {
-    dt: 0.001, sr: 32000, f_ref: 55, x_min: 0, x_max: 6, n_init: 6, n_max: 160,
+    dt: 0.001, sr: 44100, f_ref: 55, x_min: 0, x_max: 8.3, n_init: 6, n_max: 160,   // 55 Hz .. 17.3 kHz
     g: 1.8 * K, exciter_tilt: 0.35, exciter_low: 0.4, P_max: 1.0 * K,
     alpha_mean: 0.8 * K, alpha_var: 0.5 * K, h: 1.0 * K, beta: 0.15, beta_near: 2.0,
     near_width: 0.03, q: 2.0 * K, kappa: 30, w_hz: 4, cost_move: 0.3 * K, cost_open: 0.05 * K,
@@ -42,8 +42,10 @@
   /* Physics genes -> instrument physics. Missing genes (v2 genome) = v2 physics. */
   function sig(z) { return 1 / (1 + Math.exp(-z)); }
   function physics(genome) {
-    if (genome.length < FULL_LEN) return { v2: true, sustain: 1e9, ramp: 0, damp: 1, res: [], qs: 1, bs: 1, ns: 1, tremD: 0, tremR: 0 };
-    var u = genome.slice(V2_LEN, FULL_LEN).map(sig), res = [];
+    var neutral = { strike: 0, dtilt: 0, detune: P.split_detune, near: P.beta_near, tilt: P.exciter_tilt };
+    if (genome.length < V2_LEN + N_PHYS_V3) return Object.assign({ v2: true, sustain: 1e9, ramp: 0, damp: 1, res: [], qs: 1, bs: 1, ns: 1, tremD: 0, tremR: 0 }, neutral);
+    var u = genome.slice(V2_LEN, V2_LEN + N_PHYS).map(sig), res = [];
+    while (u.length < N_PHYS) u.push(null);       // 101-gene genomes: later genes neutral
     for (var r = 0; r < 3; r++) { var depth = Math.max(0, 2 * u[3 + r] - 1); if (depth > 0) res.push({ pos: 3 * u[6 + r], depth: depth }); }
     return { v2: false,
       sustain: 0.01 * Math.pow(400, u[0]),       // 10 ms (struck/plucked) .. 4 s (held)
@@ -54,7 +56,12 @@
       bs: Math.pow(2, 4 * u[10] - 2),            // combination-tone rate x0.25 .. x4
       ns: Math.pow(2, 4 * u[11] - 2),            // drive noise x0.25 .. x4
       tremD: Math.max(0, 2 * u[12] - 1) * 0.6,   // tremolo depth 0 .. 0.6
-      tremR: 2 + 8 * u[13] };                    // tremolo rate 2 .. 10 Hz
+      tremR: 2 + 8 * u[13],                      // tremolo rate 2 .. 10 Hz
+      strike: u[14] === null ? 0 : Math.round(24 * Math.max(0, 2 * u[14] - 1)),   // broadband partials at the onset, 0 .. 24
+      dtilt: u[15] === null ? 0 : -0.5 + 2 * u[15],                                // damping x 2^(dtilt * octaves above pitch)
+      detune: u[16] === null ? P.split_detune : P.split_detune * Math.pow(2, 2 - 4 * u[16]),  // purity: split spread
+      near: u[16] === null ? P.beta_near : P.beta_near * Math.pow(2, 2 * u[16] - 1),         // purity: crowding penalty
+      tilt: u[17] === null ? P.exciter_tilt : P.exciter_tilt * Math.pow(2, 1.5 - 3 * u[17]) }; // exciter brightness: gain falls by tilt per octave
   }
 
   function play(opts) {
@@ -72,9 +79,12 @@
     var seeds0 = [];
     for (var i0 = 0; i0 < P.n_init; i0++) seeds0.push([x0, 1]);
     ph.res.forEach(function (r) { seeds0.push([x0 + r.pos, r.depth]); seeds0.push([x0 + r.pos, r.depth]); });
+    var nTonal = seeds0.length;
+    for (var sk = 0; sk < ph.strike; sk++) seeds0.push([null, 1]);   // broadband impulse: random positions
     var n = seeds0.length;
     for (var i = 0; i < n; i++) {
-      x[i] = Math.min(P.x_max, Math.max(P.x_min, seeds0[i][0] + rng.n() * P.init_spread));
+      var cx0 = seeds0[i][0] === null ? (x0 - 1 + rng.u() * (P.x_max - x0 + 1)) : seeds0[i][0];
+      x[i] = Math.min(P.x_max, Math.max(P.x_min, cx0 + (seeds0[i][0] === null ? 0 : rng.n() * P.init_spread)));
       a[i] = P.a_init * (0.5 + rng.u()) * (ph.v2 ? 1 : Math.max(0.5, seeds0[i][1]));
       Phi[i] = rng.u() * TWO_PI; c[i] = 0.5;
       feff[i] = P.f_ref * Math.pow(2, x[i]);
@@ -90,10 +100,10 @@
       al -= P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * d * d);
       for (var r = 0; r < ph.res.length; r++) { var dr = (xx - x0 - ph.res[r].pos) / P.exciter_sigma;
         al -= ph.res[r].depth * P.resonance_depth * P.alpha_mean * Math.exp(-0.5 * dr * dr); }
-      return Math.max(al, 0.05 * P.alpha_mean) * ph.damp;   // a body never amplifies by itself
+      return Math.max(al, 0.05 * P.alpha_mean) * ph.damp * Math.pow(2, ph.dtilt * Math.max(0, xx - x0));   // never self-amplifying
     }
     var drive = 1;  // time course of the exciter, set every step
-    function exciter(xx) { return drive * P.g * Math.exp(-P.exciter_tilt * xx) * (1 - Math.exp(-xx / P.exciter_low)); }
+    function exciter(xx) { return drive * P.g * Math.exp(-ph.tilt * xx) * (1 - Math.exp(-xx / P.exciter_low)); }
     function netGain(xx, comp) { return comp * exciter(xx) - alphaAt(xx); }
     function freq(xx) { return P.f_ref * Math.pow(2, xx); }
 
@@ -111,10 +121,16 @@
       if (n < 2) return;
       for (var i2 = 0; i2 < n; i2++) fb[i2] = freq(x[i2]);
       var w = P.w_hz, lim = 3 * w;
+      var ord = []; for (var o3 = 0; o3 < n; o3++) ord.push(o3);
+      ord.sort(function (p1, p2) { return fb[p1] - fb[p2]; });
+      var fs = ord.map(function (ix) { return fb[ix]; });
       for (var j = 0; j < n; j++) for (var k = j; k < n; k++) {
         var s = fb[j] + fb[k];
-        for (var m = 0; m < n; m++) {
-          if (m === j || m === k) continue;
+        if (s - lim > fs[n - 1]) continue;
+        var lo = 0, hi = n;                      // first index with fs >= s - lim
+        while (lo < hi) { var mid = (lo + hi) >> 1; if (fs[mid] < s - lim) lo = mid + 1; else hi = mid; }
+        for (var q2 = lo; q2 < n && fs[q2] <= s + lim; q2++) {
+          var m = ord[q2]; if (m === j || m === k) continue;
           var d = s - fb[m];
           if (d > -lim && d < lim) { var wt = Math.exp(-(d / w) * (d / w)); if (j === k) wt *= 0.5;
             TJ.push(j); TK.push(k); TM.push(m); TW.push(wt); }
@@ -165,7 +181,7 @@
       for (var i6 = 0; i6 < n; i6++) {
         var cr = 0, na = 0;
         for (var j6 = 0; j6 < n; j6++) { if (j6 === i6) continue; var ddx = Math.abs(x[i6] - x[j6]);
-          if (ddx < 0.05) cr++; var e6 = ddx / P.near_width; na += Math.exp(-e6 * e6) * a[j6] * a[j6]; }
+          if (ddx < 0.05) cr++; if (ddx < 3 * P.near_width) { var e6 = ddx / P.near_width; na += Math.exp(-e6 * e6) * a[j6] * a[j6]; } }
         crowd[i6] = cr; nearA2[i6] = na;
       }
       // controller + amplitude
@@ -183,7 +199,7 @@
         v[i7] = migrate ? vmax * Math.tanh(o0) : 0;
         c[i7] = 1 / (1 + Math.exp(-o1));
         smod[i7] = Math.tanh(o2);
-        var sat = P.h * (ai * ai + P.beta * (a2sum - ai * ai) + P.beta_near * nearA2[i7]);
+        var sat = P.h * (ai * ai + P.beta * (a2sum - ai * ai) + ph.near * nearA2[i7]);
         var rate = net - sat - P.cost_move * (v[i7] / vmax) * (v[i7] / vmax) - P.cost_open * c[i7];
         var nz = P.noise * ph.ns * Math.sqrt(dt) * rng.n() * (drive > 0 ? 1 : 0.2);
         var an = ai + dt * (ai * rate + comp * c[i7] * dA[i7]) + ai * nz;
@@ -220,7 +236,7 @@
         while (idx.length > Math.max(room, 0)) idx.splice(Math.floor(rng.u() * idx.length), 1);
         for (var s2 = 0; s2 < idx.length; s2++) {
           var pI = idx[s2]; a[pI] = a[pI] / Math.SQRT2;
-          var cx = Math.min(P.x_max, Math.max(P.x_min, x[pI] + rng.n() * P.split_detune));
+          var cx = Math.min(P.x_max, Math.max(P.x_min, x[pI] + rng.n() * ph.detune));
           addPartial(cx, a[pI], Phi[pI], c[pI]);
         }
       }

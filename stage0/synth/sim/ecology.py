@@ -158,11 +158,16 @@ class Ecology:
                 for r in self.phys["res"]:
                     centres += [self.x0 + r["pos"]] * 2
                     depths += [r["depth"]] * 2
+                centres += [None] * int(self.phys.get("strike", 0))   # broadband impulse: random positions
+                depths += [1.0] * int(self.phys.get("strike", 0))
             n = len(centres)
             self.x = np.empty(n)
             self._seed_depth = np.asarray(depths)
             for i in range(n):
-                self.x[i] = np.clip(centres[i] + self.rng.standard_normal() * p["init_spread"], p["x_min"], p["x_max"])
+                if centres[i] is None:
+                    self.x[i] = np.clip(self.x0 - 1 + self.rng.random() * (p["x_max"] - self.x0 + 1), p["x_min"], p["x_max"])
+                else:
+                    self.x[i] = np.clip(centres[i] + self.rng.standard_normal() * p["init_spread"], p["x_min"], p["x_max"])
         else:
             self.x0 = None
             self.x = self.rng.uniform(1.0, 4.0, n)      # inharmonic random start, 110-880 Hz
@@ -208,7 +213,8 @@ class Ecology:
         p = self.p
         if self.x0 is not None and p["pitch_mode"] == "exciter":
             return p["g"] * np.exp(-0.5 * ((x - self.x0) / p["exciter_sigma"]) ** 2)
-        return self.drive * p["g"] * np.exp(-p["exciter_tilt"] * x) * (1.0 - np.exp(-x / p["exciter_low"]))
+        tilt = p["exciter_tilt"] if self.phys is None else self.phys.get("tilt", p["exciter_tilt"])
+        return self.drive * p["g"] * np.exp(-tilt * x) * (1.0 - np.exp(-x / p["exciter_low"]))
 
     def body_net_gain(self, x, comp=1.0):
         alpha = np.interp(x, self.body_x, self.body_alpha)
@@ -219,7 +225,8 @@ class Ecology:
                 for r in self.phys["res"]:
                     alpha = alpha - r["depth"] * self.p["resonance_depth"] * self.p["alpha_mean"] * np.exp(
                         -0.5 * ((x - self.x0 - r["pos"]) / self.p["exciter_sigma"]) ** 2)
-                alpha = np.maximum(alpha, 0.05 * self.p["alpha_mean"]) * self.phys["damp"]  # never self-amplifying
+                alpha = (np.maximum(alpha, 0.05 * self.p["alpha_mean"]) * self.phys["damp"]
+                         * np.power(2.0, self.phys.get("dtilt", 0.0) * np.maximum(0.0, x - self.x0)))  # never self-amplifying
         return comp * self.exciter(x) - alpha
 
     def _unpack(self):
@@ -242,6 +249,21 @@ class Ecology:
         w = self.p["w_hz"]
         jj, kk = np.triu_indices(n, 0)
         s = f[jj] + f[kk]
+        if self.p["pitch_hz"] is not None:
+            order = np.argsort(f); fs = f[order]
+            lo = np.searchsorted(fs, s - 3.0 * w, "left"); hi = np.searchsorted(fs, s + 3.0 * w, "right")
+            cnt = hi - lo
+            pi = np.repeat(np.arange(s.size), cnt)
+            offs = np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt)
+            mm = order[np.repeat(lo, cnt) + offs]
+            J, K, M = jj[pi], kk[pi], mm
+            dd = s[pi] - f[M]
+            ok = (M != J) & (M != K) & (np.abs(dd) < 3.0 * w)
+            J, K, M, dd = J[ok], K[ok], M[ok], dd[ok]
+            weight = np.exp(-(dd / w) ** 2)
+            weight = np.where(J == K, 0.5 * weight, weight)
+            self._triads = (J, K, M, weight)
+            return
         d = s[:, None] - f[None, :]                    # pairs x targets
         hit = np.abs(d) < 3.0 * w
         pi, mm = np.nonzero(hit)
@@ -355,7 +377,8 @@ class Ecology:
         # --- amplitude dynamics
         near = np.exp(-(dx / p["near_width"]) ** 2)
         np.fill_diagonal(near, 0.0)
-        sat = p["h"] * (a2 + p["beta"] * (a2.sum() - a2) + p["beta_near"] * (near @ a2))
+        bnear = p["beta_near"] if self.phys is None else self.phys.get("near", p["beta_near"])
+        sat = p["h"] * (a2 + p["beta"] * (a2.sum() - a2) + bnear * (near @ a2))
         rate = net - sat - p["cost_move"] * (v / p["v_max"]) ** 2 - p["cost_open"] * c
         nscale = 1.0 if self.phys is None else self.phys["ns"] * (1.0 if self.drive > 0 else 0.2)
         noise = p["noise"] * nscale * np.sqrt(dt) * self.rng.standard_normal(n)
@@ -463,7 +486,8 @@ class Ecology:
         k = idx.size
         self.a[idx] = self.a[idx] / np.sqrt(2.0)
         child_a = self.a[idx].copy()
-        child_x = np.clip(self.x[idx] + self.rng.standard_normal(k) * p["split_detune"], p["x_min"], p["x_max"])
+        det = p["split_detune"] if self.phys is None else self.phys.get("detune", p["split_detune"])
+        child_x = np.clip(self.x[idx] + self.rng.standard_normal(k) * det, p["x_min"], p["x_max"])
         g = self.genome[idx].copy()
         if p["evolve"]:
             g += self.rng.standard_normal(g.shape) * p["mut_sigma"]
