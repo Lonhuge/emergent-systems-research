@@ -1,9 +1,8 @@
 # Pre-registration: partial ecology, phase 1 (open, no target)
 
-**Status: DRAFT.** Parameters are still being calibrated for viability.
-The document is frozen by a commit whose message starts with "Freeze
-pre-registration". After that, any change must be a new, dated section below,
-never an edit, and no main run may start before the freeze.
+**Status: FROZEN on 2026-10-19** by the commit whose message starts with
+"Freeze pre-registration". Any later change must be a new, dated section
+below, never an edit. No run on seeds 0–4 happened before the freeze.
 
 ## Question
 
@@ -90,3 +89,22 @@ migration speed, lineages, number of triads; transient length.
 ## Parameters
 
 See the DEFAULTS block in sim/ecology.py at the freezing commit.
+
+## Calibration record (viability only, seeds 100–102, 60 s)
+
+Changes made during calibration, each for a viability failure, none touching
+the coupling form, the resonance window or the agent rules:
+
+1. Exciter band-pass (low roll-off) instead of a pure tilt: partials piled up
+   at the lower frequency bound.
+2. Stronger competition between partials closer than ~36 cents: hundreds of
+   partials sat at nearly the same frequency.
+3. Higher exciter gain: one seed went extinct.
+4. Hard exciter power budget P_max shared by all drive sources: coupled
+   populations ran away in energy and filled the population cap.
+5. Death threshold raised to an audible level and split threshold raised:
+   inaudible partials accumulated and filled the cap.
+6. Safety cap raised from 128 to 160 after the final calibration peaked at 107.
+
+Final calibration: no extinctions, cap never reached, total energy 0.6–1.2 in
+all five conditions.

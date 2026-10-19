@@ -63,7 +63,7 @@ DEFAULTS = dict(
     f_ref=55.0,            # x = 0 corresponds to 55 Hz
     x_min=0.0, x_max=6.0,  # 55 Hz .. 3520 Hz
     n_init=24,
-    n_max=128,             # hard cap, should never bind (checked in calibration)
+    n_max=160,             # hard safety cap, never reached in calibration (max 107)
     g=1.8,                 # exciter linear gain per second
     exciter_tilt=0.35,     # S(x) = exp(-tilt * x) * (1 - exp(-x / exciter_low))
     exciter_low=0.4,       # low-frequency roll-off of the exciter, octaves
