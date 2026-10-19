@@ -116,8 +116,9 @@ def main():
     with open(_safe(os.path.join(RESULTS, base + ".json")), "w") as fh:
         json.dump(rec, fh)
     last = series[-1] if series else {}
-    print(f"{args.condition:14s} seed={args.seed} n={last.get('n')} H+={last.get('harmonicity_excess', float('nan')):.3f} "
-          f"lock={last.get('lock_coherence', float('nan')):.3f} births={births} deaths={deaths} {elapsed:.0f}s")
+    # viability fields only: emergence metrics are never printed during runs
+    print(f"{args.condition:14s} seed={args.seed} n={last.get('n')} E={last.get('energy', float('nan')):.2f} "
+          f"births={births} deaths={deaths} {elapsed:.0f}s")
 
 
 if __name__ == "__main__":

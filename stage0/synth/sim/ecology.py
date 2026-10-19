@@ -11,7 +11,9 @@ What is given (physics layer, the same in every condition):
 - A random, smooth "body" loss landscape alpha(x), different per seed.
 - Cubic saturation shared by all partials (energy competition), stronger
   between partials closer than ~1/3 semitone (they share the same drive region).
-- An exciter power limit: drive is compressed by 1 / (1 + (E_total / E_sat)^2).
+- A hard exciter power budget P_max: if linear drive plus the positive part of
+  the triad drive would inject more power than P_max, all drive is scaled down
+  so that exactly P_max is injected (a player has only so much breath or bow).
 - The exciter has a band-pass characteristic (low roll-off, high tilt).
 - A generic quadratic nonlinearity of the exciter. Averaged over fast time, a
   quadratic nonlinearity couples only near-resonant triads f_j + f_k ~ f_m
@@ -65,7 +67,7 @@ DEFAULTS = dict(
     g=1.8,                 # exciter linear gain per second
     exciter_tilt=0.35,     # S(x) = exp(-tilt * x) * (1 - exp(-x / exciter_low))
     exciter_low=0.4,       # low-frequency roll-off of the exciter, octaves
-    E_sat=1.0,             # exciter power limit: drive is divided by (1 + (E_total / E_sat)^2)
+    P_max=1.0,             # exciter power budget per second (energy units a^2 / s), all drive sources together
     alpha_mean=0.8,        # body loss per second
     alpha_var=0.5,
     body_scale=0.35,       # smoothness of the body landscape in octaves
@@ -251,7 +253,10 @@ class Ecology:
         a = self.a
         af = np.maximum(a, p["a_floor"])
         a2 = a * a
-        comp = 1.0 / (1.0 + (a2.sum() / p["E_sat"]) ** 2)
+        exc = self.exciter(self.x)
+        c_prev = self.c if self.c.shape[0] == n else np.full(n, 0.5)
+        power = (exc * a2).sum() + (a * c_prev * np.maximum(dA, 0.0)).sum()
+        comp = min(1.0, p["P_max"] / power) if power > 0 else 1.0
         net = self.body_net_gain(self.x, comp)
         grad = (self.body_net_gain(np.clip(self.x + 0.02, p["x_min"], p["x_max"]), comp) -
                 self.body_net_gain(np.clip(self.x - 0.02, p["x_min"], p["x_max"]), comp)) / 0.04

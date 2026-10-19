@@ -38,6 +38,12 @@ organisation an emergent product of the agents' interaction and behaviour?**
 Calibration used seeds 100–102 and looked only at viability (population size,
 energy, births, deaths), never at harmonicity or locking.
 
+**Disclosed deviation during calibration:** one 20-second probe on seed 100
+printed harmonicity excess and lock coherence by mistake (full: H+ 0.11, lock
+0.22; no_coupling: H+ 0.00, lock -0.06). The print was removed immediately.
+No parameter was changed in response to these values. Seeds 0–4 were never run
+before the freeze.
+
 ## Primary order parameters
 
 - **harmonicity_excess**: best energy-weighted fit to the harmonic series of
