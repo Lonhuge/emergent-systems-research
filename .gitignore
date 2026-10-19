@@ -3,3 +3,5 @@
 __pycache__/
 .venv/
 node_modules/
+stage0/results/*.json
+stage0/results/summary_*.md

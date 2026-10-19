@@ -8,6 +8,11 @@ Compiled 2026-10-19. Written for an engineer, not a philosopher. Every chapter e
 
 If you only read one file, read [`docs/05-playbook-using-emergence-for-ai.md`](docs/05-playbook-using-emergence-for-ai.md). It contains the decision gate, the five emergence engines with a track record, the design principles, the risk table and a staged experiment roadmap.
 
+## Rules and current work
+
+- [`PRINCIPLES.md`](PRINCIPLES.md) holds the binding rules: real, hard emergence only, staged sandboxing, honest measurement.
+- [`stage0/`](stage0/) holds the first experiment: an open artificial-life substrate with no specified macro behaviour, emergence metrics and a sandboxed runner. Start with [`stage0/HANDOFF.md`](stage0/HANDOFF.md).
+
 ## Structure
 
 | # | File | What it answers | Words |
